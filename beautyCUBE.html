@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Preview Grafiche Beauty Cube</title>
+  <!-- Librerie per generazione PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f5f5f5; padding: 20px; }
+    #form-container {
+      display: grid;
+      grid-template-columns: 3fr 1fr 1.2fr;
+      gap: 20px;
+      background: #fff;
+      width: 100%;
+      max-width: 1000px;
+      margin: auto;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    /* Etichette dimensioni */
+    .label {
+      font-weight: bold;
+      text-align: left;
+      margin-bottom: 4px;
+      font-size: 14px;
+    }
+    .label small { font-weight: normal; font-size: 12px; }
+    /* Wrapper colonna GR_A */
+    .placeholder-A-wrapper { display: flex; flex-direction: column; }
+    /* Wrapper colonna GR_B */
+    .placeholder-B-wrapper { display: flex; flex-direction: column; }
+    /* Form e Titolo */
+    .form-area { display: flex; flex-direction: column; align-items: center; text-align: center; }
+    h1 { font-size: 20px; margin-bottom: 10px; }
+    .field { margin: 8px 0; width: 100%; }
+    .field label { font-weight: bold; display: block; margin-bottom: 4px; }
+    .field input[type="text"], .field input[type="date"] { width: 100%; padding: 6px; box-sizing: border-box; font-size: 14px; }
+    .dates { display: flex; gap: 10px; width: 100%; }
+    .dates > div { flex: 1; }
+    .image-placeholder { border: 2px dashed #bbb; border-radius: 4px; position: relative; cursor: pointer; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+    .image-placeholder img { max-width: 100%; max-height: 100%; display: block; }
+    /* Dimensioni specifiche */
+    .placeholder-A { width: 100%; height: 580px; }
+    .placeholder-B { width: 100%; height: 580px; }
+    .placeholder-Desk { width: 220px; height: 220px; margin-top: 20px; }
+    input[type="file"] { display: none; }
+    #download-pdf { margin-top: 20px; padding: 8px 16px; font-size: 14px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div id="form-container">
+    <!-- GR_A -->
+    <div class="placeholder-A-wrapper">
+      <div class="label">GR_A <small>294 x h292cm</small></div>
+      <div class="image-placeholder placeholder-A" data-index="A">GRAFICA BRAND<br><small>può contenere loghi commerciali</small></div>
+    </div>
+    <!-- GR_B -->
+    <div class="placeholder-B-wrapper">
+      <div class="label">GR_B <small>98 x h292cm</small></div>
+      <div class="image-placeholder placeholder-B" data-index="B">GRAFICA BRAND<br><small>può contenere loghi commerciali</small></div>
+    </div>
+    <!-- Form e Titolo -->
+    <div class="form-area">
+      <h1>PREVIEW GRAFICHE BEAUTY CUBE</h1>
+      <div class="field">
+        <label for="brand-name">NOME BRAND</label>
+        <input type="text" id="brand-name" placeholder="Es. Il Mio Brand">
+      </div>
+      <div class="field">
+        <label for="company-name">NOME AZIENDA</label>
+        <input type="text" id="company-name" placeholder="Es. Azienda S.p.A.">
+      </div>
+      <div class="field">
+        <label for="cube-number">NUMERO DEL CUBE</label>
+        <input type="text" id="cube-number" placeholder="Es. 01">
+      </div>
+      <div class="field dates">
+        <div><label for="date-from">DAL</label><input type="date" id="date-from"></div>
+        <div><label for="date-to">AL</label><input type="date" id="date-to"></div>
+      </div>
+      <button id="download-pdf">Scarica PDF</button>
+      <!-- GR_DESK spostato sotto il bottone -->
+      <div>
+        <div class="label">GR_DESK <small>97 x h97cm</small></div>
+        <div class="image-placeholder placeholder-Desk" data-index="Desk">GRAFICA BRAND<br><small>può contenere loghi commerciali</small></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Gestione upload immagini
+    document.querySelectorAll('.image-placeholder').forEach(placeholder => {
+      const idx = placeholder.getAttribute('data-index');
+      const fileInput = document.createElement('input'); fileInput.type = 'file'; fileInput.accept = 'image/jpeg';
+      placeholder.appendChild(fileInput);
+      placeholder.addEventListener('click', () => fileInput.click());
+      fileInput.addEventListener('change', event => {
+        const file = event.target.files[0]; if (!file) return;
+        const reader = new FileReader();
+        reader.onload = e => {
+          placeholder.innerHTML = `<img src="${e.target.result}" alt="Grafica ${idx}">`;
+          placeholder.appendChild(fileInput);
+        };
+        reader.readAsDataURL(file);
+      });
+    });
+    
+    // Genera e scarica PDF in A4 orizzontale
+    document.getElementById('download-pdf').addEventListener('click', () => {
+      html2canvas(document.getElementById('form-container'), { scale: 2 }).then(canvas => {
+        const imgData = canvas.toDataURL('image/png');
+        const { jsPDF } = window.jspdf;
+        // PDF A4 Landscape in mm
+        const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        // calcola scala per adattare
+        const imgProps = pdf.getImageProperties(imgData);
+        const imgWidth = pageWidth;
+        const imgHeight = (imgProps.height * pageWidth) / imgProps.width;
+        pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+        pdf.save('beauty_cube_a4.pdf');
+      });
+    });
+  </script>
+</body>
+</html>
+
