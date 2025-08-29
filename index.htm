@@ -46,11 +46,10 @@
                 <details id="details-section" class="bg-gray-50 rounded-lg border">
                     <summary class="cursor-pointer p-2 text-sm font-medium text-gray-700 list-none flex justify-between items-center">
                         <span>Modifica Sequenza Esercizi</span>
-                        <svg class="w-4 h-4 transition-transform duration-200 transform details-arrow" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                        <svg class="w-4 h-4 transition-transform duration-200 transform details-arrow" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
                     </summary>
                     <style> details[open] .details-arrow { transform: rotate(180deg); } </style>
                     
-                    <!-- NUOVO: Selettore per la sintesi vocale -->
                     <div class="p-3 border-t flex justify-between items-center">
                         <label for="speech-toggle" class="text-sm font-medium text-gray-700">Leggi titoli esercizi</label>
                         <label for="speech-toggle" class="relative inline-flex items-center cursor-pointer">
@@ -102,14 +101,15 @@
             const detailsSection = document.getElementById('details-section');
             const loadingOverlay = document.getElementById('loading-overlay');
             const loadingText = document.getElementById('loading-text');
-            const speechToggle = document.getElementById('speech-toggle'); // NUOVO
+            const speechToggle = document.getElementById('speech-toggle');
 
             let exercises = [];
             let currentExerciseIndex = 0;
             let timeLeft = 0;
             let timerInterval = null;
             let isPaused = true;
-            let isSpeechEnabled = true; // NUOVO
+            let isSpeechEnabled = true;
+            let isBreakTime = false; // NUOVO: Stato per la pausa
 
             const endSound = new Audio('data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YS9vT18DAAAAAAABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5enx9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/w==');
             
@@ -118,7 +118,7 @@
             addExerciseBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg><span class="ml-1">Aggiungi Riga</span>`;
 
             const speakText = (text) => {
-                if (!isSpeechEnabled || !('speechSynthesis' in window)) return; // MODIFICATO
+                if (!isSpeechEnabled || !('speechSynthesis' in window)) return;
                 window.speechSynthesis.cancel();
                 const utterance = new SpeechSynthesisUtterance(text);
                 utterance.lang = 'it-IT';
@@ -154,9 +154,19 @@
 
             const updateUI = () => {
                 if (exercises.length === 0) return;
-                const exercise = exercises[currentExerciseIndex];
-                if (!exercise) return;
-                titleEl.textContent = exercise.title;
+                
+                if (isBreakTime) {
+                    titleEl.textContent = "Pausa";
+                    countdownEl.classList.remove('text-blue-600');
+                    countdownEl.classList.add('text-green-600');
+                } else {
+                    const exercise = exercises[currentExerciseIndex];
+                    if (!exercise) return;
+                    titleEl.textContent = exercise.title;
+                    countdownEl.classList.remove('text-green-600');
+                    countdownEl.classList.add('text-blue-600');
+                }
+                
                 countdownEl.textContent = formatTime(timeLeft);
                 const nextExercise = exercises[currentExerciseIndex + 1];
                 nextExerciseLabel.textContent = nextExercise ? nextExercise.title : 'Ricomincia';
@@ -167,6 +177,7 @@
 
             const setupExercise = (index, shouldSpeak = false) => {
                 if (exercises.length === 0) return;
+                isBreakTime = false;
                 currentExerciseIndex = index;
                 const currentExercise = exercises[currentExerciseIndex];
                 timeLeft = currentExercise?.duration || 0;
@@ -176,34 +187,48 @@
 
             const pauseTimer = () => {
                 isPaused = true;
+                isBreakTime = false;
                 if (timerInterval) clearInterval(timerInterval);
                 timerInterval = null;
                 updateUI();
             };
 
             const startTimer = () => {
-                if(isPaused && timeLeft === exercises[currentExerciseIndex]?.duration) {
+                if(isPaused && !isBreakTime && timeLeft === exercises[currentExerciseIndex]?.duration) {
                     speakText(exercises[currentExerciseIndex].title);
                 }
                 isPaused = false;
                 updateUI();
                 timerInterval = setInterval(() => {
                     timeLeft--;
-                    countdownEl.textContent = formatTime(timeLeft);
-                    if (timeLeft <= 0) {
-                        if (endSound?.play) endSound.play().catch(e => console.error("Errore audio:", e));
-                        if (currentExerciseIndex < exercises.length - 1) {
-                            setupExercise(currentExerciseIndex + 1, true);
+                    
+                    if (timeLeft < 0) {
+                        if(endSound?.play) endSound.play().catch(e => console.error("Errore audio:", e));
+                        
+                        if (!isBreakTime && currentExerciseIndex < exercises.length - 1) {
+                            // Fine esercizio, inizia la pausa
+                            isBreakTime = true;
+                            timeLeft = 5;
                         } else {
-                            pauseTimer();
+                            // Fine pausa o fine ultimo esercizio
+                            isBreakTime = false;
+                            if (currentExerciseIndex < exercises.length - 1) {
+                                // Procedi al prossimo esercizio
+                                setupExercise(currentExerciseIndex + 1, true);
+                            } else {
+                                // Fine della sequenza
+                                pauseTimer();
+                                return; // Esce dall'intervallo
+                            }
                         }
                     }
+                    updateUI();
                 }, 1000);
             };
 
             const handleStartPauseClick = () => {
                 if (detailsSection.open || exercises.length === 0) return;
-                if (isPaused && timeLeft <= 0 && currentExerciseIndex >= exercises.length - 1) {
+                if (isPaused && timeLeft <= 0 && currentExerciseIndex >= exercises.length - 1 && !isBreakTime) {
                     setupExercise(0, true); 
                 }
                 isPaused ? startTimer() : pauseTimer();
@@ -236,7 +261,6 @@
                 await batch.commit();
             };
 
-            // --- NUOVA FUNZIONE: Listener per le impostazioni ---
             const setupSettingsListener = () => {
                 if (unsubscribeFromSettings) unsubscribeFromSettings();
                 const settingsDocRef = doc(db, `users/${userId}/settings/main`);
@@ -244,7 +268,7 @@
                     if (doc.exists() && typeof doc.data().speechEnabled === 'boolean') {
                         isSpeechEnabled = doc.data().speechEnabled;
                     } else {
-                        isSpeechEnabled = true; // Valore predefinito
+                        isSpeechEnabled = true;
                     }
                     speechToggle.checked = isSpeechEnabled;
                 });
@@ -303,11 +327,9 @@
                 await deleteDoc(doc(exercisesCollectionRef, id));
             };
 
-            // NUOVA FUNZIONE: Aggiorna l'impostazione su Firestore
             const updateSpeechSetting = async (isEnabled) => {
                 if (!userId) return;
                 const settingsDocRef = doc(db, `users/${userId}/settings/main`);
-                // setDoc con merge=true crea il documento se non esiste, o lo aggiorna se esiste.
                 await setDoc(settingsDocRef, { speechEnabled: isEnabled }, { merge: true });
             };
 
@@ -316,7 +338,7 @@
                     userId = user.uid;
                     updateAuthUI(user);
                     setupFirestoreListener();
-                    setupSettingsListener(); // NUOVO
+                    setupSettingsListener();
                 } else {
                     signInAnonymously(auth).catch(error => {
                         console.error("Errore di accesso anonimo:", error);
@@ -329,7 +351,7 @@
             nextBtn.addEventListener('click', handleNextClick);
             backBtn.addEventListener('click', handleBackClick);
             addExerciseBtn.addEventListener('click', handleAddRow);
-            speechToggle.addEventListener('change', () => updateSpeechSetting(speechToggle.checked)); // NUOVO
+            speechToggle.addEventListener('change', () => updateSpeechSetting(speechToggle.checked));
             exerciseListContainer.addEventListener('change', (e) => e.target.matches('input') && updateExerciseInFirestore(e));
             exerciseListContainer.addEventListener('click', (e) => e.target.closest('.delete-btn') && handleDeleteRow(e.target.closest('.delete-btn').dataset.id));
             detailsSection.addEventListener('toggle', () => detailsSection.open && pauseTimer());
