@@ -256,9 +256,12 @@
                     { title: "Guarda in giù", duration: 7 },
                     { title: "Guarda dove vuoi", duration: 8 }
                 ];
-                for (const ex of defaultExercises) {
-                    await addDoc(exercisesCollectionRef, { ...ex, createdAt: serverTimestamp() });
-                }
+                const batch = writeBatch(db);
+                defaultExercises.forEach((ex, index) => {
+                    const docRef = doc(exercisesCollectionRef);
+                    batch.set(docRef, { ...ex, order: index, createdAt: serverTimestamp() });
+                });
+                await batch.commit();
             };
 
             const setupSettingsListener = () => {
@@ -284,10 +287,29 @@
                             await createDefaultExercises();
                             return;
                         }
-                        const serverExercises = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                        exercises = serverExercises.sort((a, b) => (a.createdAt?.toMillis() ?? 0) - (b.createdAt?.toMillis() ?? 0));
+
+                        let serverExercises = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+                        // --- MIGRAZIONE DATI VECCHI ---
+                        const needsMigration = serverExercises.some(ex => typeof ex.order === 'undefined');
+                        if (needsMigration) {
+                            const batch = writeBatch(db);
+                            serverExercises
+                                .sort((a, b) => (a.createdAt?.toMillis() ?? 0) - (b.createdAt?.toMillis() ?? 0))
+                                .forEach((ex, index) => {
+                                    const docRef = doc(exercisesCollectionRef, ex.id);
+                                    batch.update(docRef, { order: index });
+                                });
+                            await batch.commit();
+                            // Non fare altro, onSnapshot si riattiverà con i dati aggiornati
+                            return; 
+                        }
+                        // --- FINE MIGRAZIONE ---
+
+                        exercises = serverExercises.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
                         renderExerciseList();
                         if (isPaused) setupExercise(currentExerciseIndex, false);
+                        
                         loadingOverlay.style.opacity = '0';
                         loadingOverlay.style.pointerEvents = 'none';
                     },
@@ -333,7 +355,12 @@
 
             const handleAddRow = async () => {
                 const exercisesCollectionRef = collection(db, `users/${userId}/exercises`);
-                await addDoc(exercisesCollectionRef, { title: 'Nuovo Esercizio', duration: 10, createdAt: serverTimestamp() });
+                await addDoc(exercisesCollectionRef, { 
+                    title: 'Nuovo Esercizio', 
+                    duration: 10, 
+                    order: exercises.length, 
+                    createdAt: serverTimestamp() 
+                });
             };
 
             const handleDeleteRow = async (id) => {
@@ -351,19 +378,14 @@
                 const exerciseToMove = exercises[currentIndex];
                 const targetExercise = exercises[targetIndex];
 
-                if (!exerciseToMove.createdAt || !targetExercise.createdAt) {
-                    console.error("Timestamp mancante, impossibile riordinare.");
-                    return;
-                }
-
                 const exercisesCollectionRef = collection(db, `users/${userId}/exercises`);
                 const batch = writeBatch(db);
                 
                 const docToMoveRef = doc(exercisesCollectionRef, exerciseToMove.id);
                 const targetDocRef = doc(exercisesCollectionRef, targetExercise.id);
                 
-                batch.update(docToMoveRef, { createdAt: targetExercise.createdAt });
-                batch.update(targetDocRef, { createdAt: exerciseToMove.createdAt });
+                batch.update(docToMoveRef, { order: targetExercise.order });
+                batch.update(targetDocRef, { order: exerciseToMove.order });
                 
                 try {
                     await batch.commit();
