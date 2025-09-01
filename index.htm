@@ -159,24 +159,24 @@
                     titleEl.textContent = "Pausa";
                     countdownEl.classList.remove('text-blue-600');
                     countdownEl.classList.add('text-green-600');
+                    nextExerciseLabel.textContent = exercises[currentExerciseIndex + 1]?.title || 'Ricomincia';
                 } else {
                     const exercise = exercises[currentExerciseIndex];
                     if (!exercise) return;
                     titleEl.textContent = exercise.title;
                     countdownEl.classList.remove('text-green-600');
                     countdownEl.classList.add('text-blue-600');
+                    nextExerciseLabel.textContent = exercises[currentExerciseIndex + 1]?.title || 'Ricomincia';
                 }
                 
                 countdownEl.textContent = formatTime(timeLeft);
-                nextExerciseLabel.textContent = exercises[currentExerciseIndex + 1]?.title || 'Ricomincia';
-
                 startPauseBtn.textContent = isPaused ? 'START' : 'PAUSE';
                 backBtn.style.visibility = currentExerciseIndex > 0 ? 'visible' : 'hidden';
                 nextBtn.style.visibility = currentExerciseIndex < exercises.length - 1 ? 'visible' : 'hidden';
             };
 
             const setupExercise = (index, shouldSpeak = false) => {
-                if (exercises.length === 0) return;
+                if (exercises.length === 0 || index >= exercises.length || index < 0) return;
                 isBreakTime = false;
                 currentExerciseIndex = index;
                 const currentExercise = exercises[currentExerciseIndex];
@@ -207,17 +207,19 @@
                         if (!isBreakTime && currentExerciseIndex < exercises.length - 1) {
                             isBreakTime = true;
                             timeLeft = 5;
+                            updateUI();
                         } else {
-                            isBreakTime = false;
                             if (currentExerciseIndex < exercises.length - 1) {
                                 setupExercise(currentExerciseIndex + 1, true);
                             } else {
                                 pauseTimer();
+                                isBreakTime = false;
                                 return;
                             }
                         }
+                    } else {
+                        updateUI();
                     }
-                    updateUI();
                 }, 1000);
             };
 
@@ -231,6 +233,7 @@
 
             const handleNextClick = () => {
                 pauseTimer();
+                isBreakTime = false;
                 if (currentExerciseIndex < exercises.length - 1) {
                     setupExercise(currentExerciseIndex + 1, true);
                 }
@@ -238,6 +241,7 @@
 
             const handleBackClick = () => {
                 pauseTimer();
+                isBreakTime = false;
                 if (currentExerciseIndex > 0) {
                     setupExercise(currentExerciseIndex - 1, true);
                 }
@@ -252,9 +256,6 @@
                     { title: "Guarda in giù", duration: 7 },
                     { title: "Guarda dove vuoi", duration: 8 }
                 ];
-
-                // Scriviamo gli esercizi uno per uno per garantire timestamp univoci e ordinati
-                // generati dal server. Un batch assegnerebbe a tutti lo stesso timestamp.
                 for (const ex of defaultExercises) {
                     await addDoc(exercisesCollectionRef, { ...ex, createdAt: serverTimestamp() });
                 }
@@ -279,7 +280,7 @@
                 
                 unsubscribeFromExercises = onSnapshot(exercisesCollectionRef, 
                     async (snapshot) => {
-                        if (snapshot.empty) {
+                        if (snapshot.empty && userId) {
                             await createDefaultExercises();
                             return;
                         }
