@@ -109,7 +109,7 @@
             let timerInterval = null;
             let isPaused = true;
             let isSpeechEnabled = true;
-            let isBreakTime = false; // NUOVO: Stato per la pausa
+            let isBreakTime = false;
 
             const endSound = new Audio('data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YS9vT18DAAAAAAABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5enx9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/w==');
             
@@ -168,10 +168,12 @@
                 }
                 
                 countdownEl.textContent = formatTime(timeLeft);
-                const nextExercise = exercises[currentExerciseIndex + 1];
-                nextExerciseLabel.textContent = nextExercise ? nextExercise.title : 'Ricomincia';
+                const nextExercise = exercises[currentExerciseIndex];
+                const nextLabelText = isBreakTime ? (exercises[currentExerciseIndex]?.title || 'Fine') : (exercises[currentExerciseIndex + 1]?.title || 'Ricomincia');
+                nextExerciseLabel.textContent = nextLabelText;
+
                 startPauseBtn.textContent = isPaused ? 'START' : 'PAUSE';
-                backBtn.style.visibility = currentExerciseIndex > 0 ? 'visible' : 'hidden';
+                backBtn.style.visibility = currentExerciseIndex > 0 || isBreakTime ? 'visible' : 'hidden';
                 nextBtn.style.visibility = currentExerciseIndex < exercises.length - 1 ? 'visible' : 'hidden';
             };
 
@@ -187,14 +189,13 @@
 
             const pauseTimer = () => {
                 isPaused = true;
-                isBreakTime = false;
                 if (timerInterval) clearInterval(timerInterval);
                 timerInterval = null;
                 updateUI();
             };
 
             const startTimer = () => {
-                if(isPaused && !isBreakTime && timeLeft === exercises[currentExerciseIndex]?.duration) {
+                if (isPaused && !isBreakTime && timeLeft === (exercises[currentExerciseIndex]?.duration || 0)) {
                     speakText(exercises[currentExerciseIndex].title);
                 }
                 isPaused = false;
@@ -206,19 +207,15 @@
                         if(endSound?.play) endSound.play().catch(e => console.error("Errore audio:", e));
                         
                         if (!isBreakTime && currentExerciseIndex < exercises.length - 1) {
-                            // Fine esercizio, inizia la pausa
                             isBreakTime = true;
                             timeLeft = 5;
                         } else {
-                            // Fine pausa o fine ultimo esercizio
                             isBreakTime = false;
                             if (currentExerciseIndex < exercises.length - 1) {
-                                // Procedi al prossimo esercizio
                                 setupExercise(currentExerciseIndex + 1, true);
                             } else {
-                                // Fine della sequenza
                                 pauseTimer();
-                                return; // Esce dall'intervallo
+                                return;
                             }
                         }
                     }
@@ -236,12 +233,20 @@
 
             const handleNextClick = () => {
                 pauseTimer();
-                if (currentExerciseIndex < exercises.length - 1) setupExercise(currentExerciseIndex + 1, true);
+                if (isBreakTime) {
+                    setupExercise(currentExerciseIndex, true);
+                } else if (currentExerciseIndex < exercises.length - 1) {
+                    setupExercise(currentExerciseIndex + 1, true);
+                }
             };
 
             const handleBackClick = () => {
                 pauseTimer();
-                if (currentExerciseIndex > 0) setupExercise(currentExerciseIndex - 1, true);
+                if (isBreakTime) {
+                     setupExercise(currentExerciseIndex, true);
+                } else if (currentExerciseIndex > 0) {
+                    setupExercise(currentExerciseIndex - 1, true);
+                }
             };
 
             const createDefaultExercises = async () => {
@@ -301,10 +306,24 @@
 
             const renderExerciseList = () => {
                 exerciseListContainer.innerHTML = '';
-                exercises.forEach((exercise) => {
+                exercises.forEach((exercise, index) => {
                     const row = document.createElement('div');
-                    row.className = 'flex items-center space-x-2 mb-2';
-                    row.innerHTML = `<input type="text" value="${exercise.title}" data-id="${exercise.id}" data-field="title" class="flex-grow p-1 border rounded-md text-sm"><input type="number" value="${exercise.duration}" data-id="${exercise.id}" data-field="duration" class="w-16 p-1 border rounded-md text-sm text-center"><button data-id="${exercise.id}" class="delete-btn p-1 text-red-500 hover:bg-red-100 rounded-full"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button>`;
+                    row.className = 'flex items-center space-x-1 mb-2';
+                    row.innerHTML = `
+                        <input type="text" value="${exercise.title}" data-id="${exercise.id}" data-field="title" class="flex-grow p-1 border rounded-md text-sm">
+                        <input type="number" value="${exercise.duration}" data-id="${exercise.id}" data-field="duration" class="w-16 p-1 border rounded-md text-sm text-center">
+                        
+                        <button data-id="${exercise.id}" data-direction="up" class="move-btn p-1 text-gray-500 hover:bg-gray-200 rounded-full" ${index === 0 ? 'style="visibility: hidden;"' : ''}>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+                        </button>
+                        <button data-id="${exercise.id}" data-direction="down" class="move-btn p-1 text-gray-500 hover:bg-gray-200 rounded-full" ${index === exercises.length - 1 ? 'style="visibility: hidden;"' : ''}>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                        </button>
+                        
+                        <button data-id="${exercise.id}" class="delete-btn p-1 text-red-500 hover:bg-red-100 rounded-full">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                        </button>
+                    `;
                     exerciseListContainer.appendChild(row);
                 });
             };
@@ -325,6 +344,37 @@
             const handleDeleteRow = async (id) => {
                 const exercisesCollectionRef = collection(db, `users/${userId}/exercises`);
                 await deleteDoc(doc(exercisesCollectionRef, id));
+            };
+
+            const handleMoveExercise = async (id, direction) => {
+                const currentIndex = exercises.findIndex(ex => ex.id === id);
+                if (currentIndex === -1) return;
+
+                const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+                if (targetIndex < 0 || targetIndex >= exercises.length) return;
+
+                const exerciseToMove = exercises[currentIndex];
+                const targetExercise = exercises[targetIndex];
+
+                if (!exerciseToMove.createdAt || !targetExercise.createdAt) {
+                    console.error("Timestamp mancante, impossibile riordinare.");
+                    return;
+                }
+
+                const exercisesCollectionRef = collection(db, `users/${userId}/exercises`);
+                const batch = writeBatch(db);
+                
+                const docToMoveRef = doc(exercisesCollectionRef, exerciseToMove.id);
+                const targetDocRef = doc(exercisesCollectionRef, targetExercise.id);
+                
+                batch.update(docToMoveRef, { createdAt: targetExercise.createdAt });
+                batch.update(targetDocRef, { createdAt: exerciseToMove.createdAt });
+                
+                try {
+                    await batch.commit();
+                } catch (error) {
+                    console.error("Errore nel riordinare gli esercizi:", error);
+                }
             };
 
             const updateSpeechSetting = async (isEnabled) => {
@@ -353,7 +403,20 @@
             addExerciseBtn.addEventListener('click', handleAddRow);
             speechToggle.addEventListener('change', () => updateSpeechSetting(speechToggle.checked));
             exerciseListContainer.addEventListener('change', (e) => e.target.matches('input') && updateExerciseInFirestore(e));
-            exerciseListContainer.addEventListener('click', (e) => e.target.closest('.delete-btn') && handleDeleteRow(e.target.closest('.delete-btn').dataset.id));
+            
+            exerciseListContainer.addEventListener('click', (e) => {
+                const deleteBtn = e.target.closest('.delete-btn');
+                if (deleteBtn) {
+                    handleDeleteRow(deleteBtn.dataset.id);
+                    return;
+                }
+
+                const moveBtn = e.target.closest('.move-btn');
+                if (moveBtn) {
+                    handleMoveExercise(moveBtn.dataset.id, moveBtn.dataset.direction);
+                }
+            });
+
             detailsSection.addEventListener('toggle', () => detailsSection.open && pauseTimer());
 
             if ('serviceWorker' in navigator) {
