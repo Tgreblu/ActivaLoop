@@ -45,8 +45,14 @@
             <div class="flex-shrink-0">
                 <details id="details-section" class="bg-gray-50 rounded-lg border">
                     <summary class="cursor-pointer p-2 text-sm font-medium text-gray-700 list-none flex justify-between items-center">
-                        <span>Modifica Sequenza Esercizi</span>
-                        <svg class="w-4 h-4 transition-transform duration-200 transform details-arrow" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                        <div class="flex items-center space-x-2 flex-grow">
+                           <span id="sequence-title" class="truncate">Modifica Sequenza Esercizi</span>
+                           <span id="total-duration" class="text-xs text-gray-500 font-normal whitespace-nowrap"></span>
+                        </div>
+                         <div class="flex items-center space-x-2 flex-shrink-0">
+                           <button id="edit-title-btn" class="p-1 rounded-full hover:bg-gray-200"></button>
+                           <svg class="w-4 h-4 transition-transform duration-200 transform details-arrow" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                        </div>
                     </summary>
                     <style> details[open] .details-arrow { transform: rotate(180deg); } </style>
                     
@@ -54,6 +60,14 @@
                         <label for="speech-toggle" class="text-sm font-medium text-gray-700">Leggi titoli esercizi</label>
                         <label for="speech-toggle" class="relative inline-flex items-center cursor-pointer">
                             <input type="checkbox" id="speech-toggle" class="sr-only peer" checked>
+                            <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-2 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+                    </div>
+
+                    <div class="p-3 border-t flex justify-between items-center">
+                        <label for="comment-speech-toggle" class="text-sm font-medium text-gray-700">Leggi commenti</label>
+                        <label for="comment-speech-toggle" class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="comment-speech-toggle" class="sr-only peer" checked>
                             <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-2 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                         </label>
                     </div>
@@ -102,6 +116,10 @@
             const loadingOverlay = document.getElementById('loading-overlay');
             const loadingText = document.getElementById('loading-text');
             const speechToggle = document.getElementById('speech-toggle');
+            const commentSpeechToggle = document.getElementById('comment-speech-toggle');
+            const sequenceTitleEl = document.getElementById('sequence-title');
+            const totalDurationEl = document.getElementById('total-duration');
+            const editTitleBtn = document.getElementById('edit-title-btn');
 
             let exercises = [];
             let currentExerciseIndex = 0;
@@ -109,7 +127,16 @@
             let timerInterval = null;
             let isPaused = true;
             let isSpeechEnabled = true;
+            let isCommentSpeechEnabled = true;
             let isBreakTime = false;
+            let commentTimeout = null;
+            let isEditingTitle = false;
+            let sequenceTitle = "Sequenza Esercizi";
+
+            const pencilIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>`;
+            const checkIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+            editTitleBtn.innerHTML = pencilIcon;
+
 
             const endSound = new Audio('data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YS9vT18DAAAAAAABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5enx9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/w==');
             
@@ -118,8 +145,7 @@
             addExerciseBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg><span class="ml-1">Aggiungi Riga</span>`;
 
             const speakText = (text) => {
-                if (!isSpeechEnabled || !('speechSynthesis' in window)) return;
-                window.speechSynthesis.cancel();
+                if (!('speechSynthesis' in window) || !text) return;
                 const utterance = new SpeechSynthesisUtterance(text);
                 utterance.lang = 'it-IT';
                 utterance.rate = 0.9;
@@ -177,24 +203,38 @@
 
             const setupExercise = (index, shouldSpeak = false) => {
                 if (exercises.length === 0 || index >= exercises.length || index < 0) return;
+                
+                window.speechSynthesis.cancel();
+                if (commentTimeout) clearTimeout(commentTimeout);
+                
                 isBreakTime = false;
                 currentExerciseIndex = index;
                 const currentExercise = exercises[currentExerciseIndex];
                 timeLeft = currentExercise?.duration || 0;
                 updateUI();
-                if (shouldSpeak) speakText(currentExercise.title);
+                
+                if (shouldSpeak && isSpeechEnabled) {
+                    speakText(currentExercise.title);
+                    if (isCommentSpeechEnabled && currentExercise.comment && currentExercise.comment.trim() !== '') {
+                        commentTimeout = setTimeout(() => {
+                           if (!isPaused) speakText(currentExercise.comment);
+                        }, 3000);
+                    }
+                }
             };
 
             const pauseTimer = () => {
                 isPaused = true;
                 if (timerInterval) clearInterval(timerInterval);
+                if (commentTimeout) clearTimeout(commentTimeout);
+                window.speechSynthesis.cancel();
                 timerInterval = null;
                 updateUI();
             };
 
             const startTimer = () => {
                 if (isPaused && !isBreakTime && timeLeft === (exercises[currentExerciseIndex]?.duration || 0)) {
-                    speakText(exercises[currentExerciseIndex].title);
+                    setupExercise(currentExerciseIndex, true);
                 }
                 isPaused = false;
                 updateUI();
@@ -233,7 +273,6 @@
 
             const handleNextClick = () => {
                 pauseTimer();
-                isBreakTime = false;
                 if (currentExerciseIndex < exercises.length - 1) {
                     setupExercise(currentExerciseIndex + 1, true);
                 }
@@ -241,7 +280,6 @@
 
             const handleBackClick = () => {
                 pauseTimer();
-                isBreakTime = false;
                 if (currentExerciseIndex > 0) {
                     setupExercise(currentExerciseIndex - 1, true);
                 }
@@ -250,11 +288,11 @@
             const createDefaultExercises = async () => {
                 const exercisesCollectionRef = collection(db, `users/${userId}/exercises`);
                 const defaultExercises = [
-                    { title: "Fai palming con le mani calde", duration: 12 },
-                    { title: "Prossimo esercizio...", duration: 10 },
-                    { title: "Guarda in su", duration: 12 },
-                    { title: "Guarda in giù", duration: 7 },
-                    { title: "Guarda dove vuoi", duration: 8 }
+                    { title: "Fai palming con le mani calde", duration: 12, comment: "" },
+                    { title: "Prossimo esercizio...", duration: 10, comment: "Rilassa gli occhi." },
+                    { title: "Guarda in su", duration: 12, comment: "" },
+                    { title: "Guarda in giù", duration: 7, comment: "" },
+                    { title: "Guarda dove vuoi", duration: 8, comment: "Senza sforzare." }
                 ];
                 const batch = writeBatch(db);
                 defaultExercises.forEach((ex, index) => {
@@ -264,16 +302,31 @@
                 await batch.commit();
             };
 
+             const calculateTotalTime = () => {
+                if (exercises.length === 0) {
+                    totalDurationEl.textContent = '(00:00)';
+                    return;
+                }
+                const exerciseDuration = exercises.reduce((sum, ex) => sum + (ex.duration || 0), 0);
+                const breakDuration = (exercises.length > 1) ? (exercises.length - 1) * 5 : 0;
+                const totalSeconds = exerciseDuration + breakDuration;
+                totalDurationEl.textContent = `(${formatTime(totalSeconds)})`;
+            };
+
             const setupSettingsListener = () => {
                 if (unsubscribeFromSettings) unsubscribeFromSettings();
                 const settingsDocRef = doc(db, `users/${userId}/settings/main`);
                 unsubscribeFromSettings = onSnapshot(settingsDocRef, (doc) => {
-                    if (doc.exists() && typeof doc.data().speechEnabled === 'boolean') {
-                        isSpeechEnabled = doc.data().speechEnabled;
-                    } else {
-                        isSpeechEnabled = true;
-                    }
+                    const settings = doc.data() || {};
+                    isSpeechEnabled = typeof settings.speechEnabled === 'boolean' ? settings.speechEnabled : true;
+                    isCommentSpeechEnabled = typeof settings.commentSpeechEnabled === 'boolean' ? settings.commentSpeechEnabled : true;
+                    sequenceTitle = settings.sequenceTitle || "Sequenza Esercizi";
+
                     speechToggle.checked = isSpeechEnabled;
+                    commentSpeechToggle.checked = isCommentSpeechEnabled;
+                    if (!isEditingTitle) {
+                        sequenceTitleEl.textContent = sequenceTitle;
+                    }
                 });
             };
 
@@ -290,7 +343,6 @@
 
                         let serverExercises = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-                        // --- MIGRAZIONE DATI VECCHI ---
                         const needsMigration = serverExercises.some(ex => typeof ex.order === 'undefined');
                         if (needsMigration) {
                             const batch = writeBatch(db);
@@ -301,13 +353,12 @@
                                     batch.update(docRef, { order: index });
                                 });
                             await batch.commit();
-                            // Non fare altro, onSnapshot si riattiverà con i dati aggiornati
                             return; 
                         }
-                        // --- FINE MIGRAZIONE ---
 
                         exercises = serverExercises.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
                         renderExerciseList();
+                        calculateTotalTime();
                         if (isPaused) setupExercise(currentExerciseIndex, false);
                         
                         loadingOverlay.style.opacity = '0';
@@ -325,21 +376,26 @@
                 exerciseListContainer.innerHTML = '';
                 exercises.forEach((exercise, index) => {
                     const row = document.createElement('div');
-                    row.className = 'flex items-center space-x-1 mb-2';
+                    row.className = 'flex items-start space-x-1 mb-2';
                     row.innerHTML = `
-                        <input type="text" value="${exercise.title}" data-id="${exercise.id}" data-field="title" class="flex-grow p-1 border rounded-md text-sm">
-                        <input type="number" value="${exercise.duration}" data-id="${exercise.id}" data-field="duration" class="w-16 p-1 border rounded-md text-sm text-center">
-                        
-                        <button data-id="${exercise.id}" data-direction="up" class="move-btn p-1 text-gray-500 hover:bg-gray-200 rounded-full" ${index === 0 ? 'style="visibility: hidden;"' : ''}>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
-                        </button>
-                        <button data-id="${exercise.id}" data-direction="down" class="move-btn p-1 text-gray-500 hover:bg-gray-200 rounded-full" ${index === exercises.length - 1 ? 'style="visibility: hidden;"' : ''}>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-                        </button>
-                        
-                        <button data-id="${exercise.id}" class="delete-btn p-1 text-red-500 hover:bg-red-100 rounded-full">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-                        </button>
+                        <div class="flex-grow">
+                            <input type="text" value="${exercise.title}" placeholder="Titolo Esercizio" data-id="${exercise.id}" data-field="title" class="w-full p-1 border rounded-md text-sm">
+                            <textarea placeholder="Aggiungi un commento..." data-id="${exercise.id}" data-field="comment" class="w-full mt-1 p-1 border rounded-md text-xs h-10 resize-none">${exercise.comment || ''}</textarea>
+                        </div>
+                        <div class="flex-shrink-0 flex flex-col items-center space-y-1 pt-1">
+                            <input type="number" value="${exercise.duration}" data-id="${exercise.id}" data-field="duration" class="w-16 p-1 border rounded-md text-sm text-center">
+                            <div class="flex items-center">
+                                <button data-id="${exercise.id}" data-direction="up" class="move-btn p-1 text-gray-500 hover:bg-gray-200 rounded-full" ${index === 0 ? 'style="visibility: hidden;"' : ''}>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+                                </button>
+                                <button data-id="${exercise.id}" data-direction="down" class="move-btn p-1 text-gray-500 hover:bg-gray-200 rounded-full" ${index === exercises.length - 1 ? 'style="visibility: hidden;"' : ''}>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                                </button>
+                                <button data-id="${exercise.id}" class="delete-btn p-1 text-red-500 hover:bg-red-100 rounded-full">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                                </button>
+                            </div>
+                        </div>
                     `;
                     exerciseListContainer.appendChild(row);
                 });
@@ -358,6 +414,7 @@
                 await addDoc(exercisesCollectionRef, { 
                     title: 'Nuovo Esercizio', 
                     duration: 10, 
+                    comment: '',
                     order: exercises.length, 
                     createdAt: serverTimestamp() 
                 });
@@ -394,10 +451,10 @@
                 }
             };
 
-            const updateSpeechSetting = async (isEnabled) => {
+            const updateSetting = async (settingKey, value) => {
                 if (!userId) return;
                 const settingsDocRef = doc(db, `users/${userId}/settings/main`);
-                await setDoc(settingsDocRef, { speechEnabled: isEnabled }, { merge: true });
+                await setDoc(settingsDocRef, { [settingKey]: value }, { merge: true });
             };
 
             onAuthStateChanged(auth, (user) => {
@@ -418,8 +475,9 @@
             nextBtn.addEventListener('click', handleNextClick);
             backBtn.addEventListener('click', handleBackClick);
             addExerciseBtn.addEventListener('click', handleAddRow);
-            speechToggle.addEventListener('change', () => updateSpeechSetting(speechToggle.checked));
-            exerciseListContainer.addEventListener('change', (e) => e.target.matches('input') && updateExerciseInFirestore(e));
+            speechToggle.addEventListener('change', () => updateSetting('speechEnabled', speechToggle.checked));
+            commentSpeechToggle.addEventListener('change', () => updateSetting('commentSpeechEnabled', commentSpeechToggle.checked));
+            exerciseListContainer.addEventListener('change', (e) => (e.target.matches('input') || e.target.matches('textarea')) && updateExerciseInFirestore(e));
             
             exerciseListContainer.addEventListener('click', (e) => {
                 const deleteBtn = e.target.closest('.delete-btn');
@@ -431,6 +489,31 @@
                 const moveBtn = e.target.closest('.move-btn');
                 if (moveBtn) {
                     handleMoveExercise(moveBtn.dataset.id, moveBtn.dataset.direction);
+                }
+            });
+
+            editTitleBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+
+                if (isEditingTitle) { // Salva
+                    const input = document.getElementById('title-input');
+                    const newTitle = input.value.trim();
+                    isEditingTitle = false;
+                    
+                    if (newTitle && newTitle !== sequenceTitle) {
+                         updateSetting('sequenceTitle', newTitle);
+                    } else {
+                        sequenceTitleEl.textContent = sequenceTitle;
+                    }
+                     editTitleBtn.innerHTML = pencilIcon;
+
+                } else { // Modifica
+                    isEditingTitle = true;
+                    const currentTitle = sequenceTitleEl.textContent;
+                    sequenceTitleEl.innerHTML = `<input type="text" id="title-input" class="text-sm font-medium bg-white border rounded px-1 -my-1" value="${currentTitle}">`;
+                    editTitleBtn.innerHTML = checkIcon;
+                    document.getElementById('title-input').focus();
                 }
             });
 
