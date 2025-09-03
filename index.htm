@@ -19,72 +19,45 @@
             align-items: center; justify-content: center; z-index: 10;
             transition: opacity 0.3s;
         }
+        .details-summary::-webkit-details-marker { display: none; }
+        .details-summary { list-style: none; }
     </style>
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen">
 
-    <div id="app-container" class="bg-white rounded-2xl shadow-xl p-6 border border-gray-200 relative" style="width: 600px; height: 400px;">
+    <div id="app-container" class="bg-white rounded-2xl shadow-xl p-6 border border-gray-200 relative flex flex-col" style="width: 600px; height: 400px;">
         <div id="loading-overlay">
             <p id="loading-text" class="text-gray-600">Sincronizzazione dati...</p>
         </div>
 
         <div id="auth-container" class="absolute top-4 right-4 text-sm"></div>
 
-        <div class="flex flex-col h-full">
-            <div class="text-center flex-grow pt-8">
-                <h1 id="exercise-title" class="text-3xl font-bold text-gray-800 mb-4 h-16 flex items-center justify-center"></h1>
-                <p id="countdown-display" class="text-7xl font-bold text-blue-600 mb-6">00:00</p>
-                <div class="flex justify-center items-center space-x-4 mb-4">
-                    <button id="back-btn" class="p-3 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-700 transition-all duration-200"></button>
-                    <button id="start-pause-btn" class="w-32 text-xl font-semibold py-3 px-6 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-all duration-200 shadow-md"></button>
-                    <button id="next-btn" class="p-3 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-700 transition-all duration-200"></button>
-                </div>
-                <p class="text-sm text-gray-500 h-5">Prossimo: <span id="next-exercise-label"></span></p>
+        <div class="text-center flex-shrink-0 pt-8">
+            <h1 id="exercise-title" class="text-3xl font-bold text-gray-800 mb-4 h-16 flex items-center justify-center">ActivaLoop</h1>
+            <p id="countdown-display" class="text-7xl font-bold text-blue-600 mb-6">00:00</p>
+            <div class="flex justify-center items-center space-x-4 mb-4">
+                <button id="back-btn" class="p-3 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-700 transition-all duration-200"></button>
+                <button id="start-pause-btn" class="w-32 text-xl font-semibold py-3 px-6 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-all duration-200 shadow-md"></button>
+                <button id="next-btn" class="p-3 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-700 transition-all duration-200"></button>
             </div>
+            <p class="text-sm text-gray-500 h-5">Prossimo: <span id="next-exercise-label"></span></p>
+        </div>
 
-            <div class="flex-shrink-0">
-                <details id="details-section" class="bg-gray-50 rounded-lg border">
-                    <summary class="cursor-pointer p-2 text-sm font-medium text-gray-700 list-none flex justify-between items-center">
-                        <div class="flex items-center space-x-2 flex-grow">
-                           <span id="sequence-title" class="truncate">Modifica Sequenza Esercizi</span>
-                           <span id="total-duration" class="text-xs text-gray-500 font-normal whitespace-nowrap"></span>
-                        </div>
-                         <div class="flex items-center space-x-2 flex-shrink-0">
-                           <button id="edit-title-btn" class="p-1 rounded-full hover:bg-gray-200"></button>
-                           <svg class="w-4 h-4 transition-transform duration-200 transform details-arrow" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
-                        </div>
-                    </summary>
-                    <style> details[open] .details-arrow { transform: rotate(180deg); } </style>
-                    
-                    <div class="p-3 border-t flex justify-between items-center">
-                        <label for="speech-toggle" class="text-sm font-medium text-gray-700">Leggi titoli esercizi</label>
-                        <label for="speech-toggle" class="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" id="speech-toggle" class="sr-only peer" checked>
-                            <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-2 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                        </label>
-                    </div>
-
-                    <div class="p-3 border-t flex justify-between items-center">
-                        <label for="comment-speech-toggle" class="text-sm font-medium text-gray-700">Leggi commenti</label>
-                        <label for="comment-speech-toggle" class="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" id="comment-speech-toggle" class="sr-only peer" checked>
-                            <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-2 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                        </label>
-                    </div>
-
-                    <div id="exercise-list" class="p-3 border-t max-h-48 overflow-y-auto"></div>
-                    <div class="p-2 border-t bg-gray-100 rounded-b-lg">
-                        <button id="add-exercise-btn" class="w-full flex items-center justify-center py-1 text-sm text-blue-600 hover:bg-blue-100 rounded-md"></button>
-                    </div>
-                </details>
+        <div class="flex-grow mt-4 overflow-hidden relative">
+            <div id="sequences-container" class="absolute inset-0 space-y-2 overflow-y-auto pr-2">
+                <!-- Le sequenze verranno generate qui -->
             </div>
         </div>
+        
+        <button id="add-sequence-btn" class="absolute bottom-4 right-4 bg-blue-600 text-white rounded-full p-2 hover:bg-blue-700 shadow-lg transition">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+        </button>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut, linkWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-        import { getFirestore, collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp, writeBatch, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getFirestore, collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp, writeBatch, setDoc, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAoSqwkSoatQLABaTL17EnU4pA40kcWonY",
@@ -100,7 +73,8 @@
         const db = getFirestore(app);
         
         let userId = null;
-        let unsubscribeFromExercises, unsubscribeFromSettings;
+        let unsubscribeFromSequences;
+        let exerciseUnsubscribers = new Map();
 
         document.addEventListener('DOMContentLoaded', () => {
             const authContainer = document.getElementById('auth-container');
@@ -110,39 +84,25 @@
             const nextBtn = document.getElementById('next-btn');
             const backBtn = document.getElementById('back-btn');
             const nextExerciseLabel = document.getElementById('next-exercise-label');
-            const exerciseListContainer = document.getElementById('exercise-list');
-            const addExerciseBtn = document.getElementById('add-exercise-btn');
-            const detailsSection = document.getElementById('details-section');
+            const sequencesContainer = document.getElementById('sequences-container');
+            const addSequenceBtn = document.getElementById('add-sequence-btn');
             const loadingOverlay = document.getElementById('loading-overlay');
             const loadingText = document.getElementById('loading-text');
-            const speechToggle = document.getElementById('speech-toggle');
-            const commentSpeechToggle = document.getElementById('comment-speech-toggle');
-            const sequenceTitleEl = document.getElementById('sequence-title');
-            const totalDurationEl = document.getElementById('total-duration');
-            const editTitleBtn = document.getElementById('edit-title-btn');
 
-            let exercises = [];
+            let allSequences = [];
             let currentExerciseIndex = 0;
             let timeLeft = 0;
             let timerInterval = null;
             let isPaused = true;
-            let isSpeechEnabled = true;
-            let isCommentSpeechEnabled = true;
             let isBreakTime = false;
             let commentTimeout = null;
-            let isEditingTitle = false;
-            let sequenceTitle = "Sequenza Esercizi";
-
+            
             const pencilIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>`;
             const checkIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
-            editTitleBtn.innerHTML = pencilIcon;
-
-
             const endSound = new Audio('data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YS9vT18DAAAAAAABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj9AQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVpbXF1eX2BhYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5enx9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/w==');
             
             backBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>`;
             nextBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>`;
-            addExerciseBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg><span class="ml-1">Aggiungi Riga</span>`;
 
             const speakText = (text) => {
                 if (!('speechSynthesis' in window) || !text) return;
@@ -178,44 +138,53 @@
             
             const formatTime = (seconds) => `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 
+            const getActiveSequence = () => allSequences.find(s => s.isActive);
+            
             const updateUI = () => {
-                if (exercises.length === 0) return;
-                
+                const activeSequence = getActiveSequence();
+                if (!activeSequence || activeSequence.exercises.length === 0) {
+                     titleEl.textContent = activeSequence ? activeSequence.title : "ActivaLoop";
+                     countdownEl.textContent = formatTime(0);
+                     nextExerciseLabel.textContent = "";
+                     return;
+                };
+
                 if (isBreakTime) {
                     titleEl.textContent = "Pausa";
                     countdownEl.classList.remove('text-blue-600');
                     countdownEl.classList.add('text-green-600');
-                    nextExerciseLabel.textContent = exercises[currentExerciseIndex + 1]?.title || 'Ricomincia';
+                    nextExerciseLabel.textContent = activeSequence.exercises[currentExerciseIndex + 1]?.title || 'Ricomincia';
                 } else {
-                    const exercise = exercises[currentExerciseIndex];
+                    const exercise = activeSequence.exercises[currentExerciseIndex];
                     if (!exercise) return;
                     titleEl.textContent = exercise.title;
                     countdownEl.classList.remove('text-green-600');
                     countdownEl.classList.add('text-blue-600');
-                    nextExerciseLabel.textContent = exercises[currentExerciseIndex + 1]?.title || 'Ricomincia';
+                    nextExerciseLabel.textContent = activeSequence.exercises[currentExerciseIndex + 1]?.title || 'Ricomincia';
                 }
                 
                 countdownEl.textContent = formatTime(timeLeft);
                 startPauseBtn.textContent = isPaused ? 'START' : 'PAUSE';
                 backBtn.style.visibility = currentExerciseIndex > 0 ? 'visible' : 'hidden';
-                nextBtn.style.visibility = currentExerciseIndex < exercises.length - 1 ? 'visible' : 'hidden';
+                nextBtn.style.visibility = currentExerciseIndex < activeSequence.exercises.length - 1 ? 'visible' : 'hidden';
             };
 
             const setupExercise = (index, shouldSpeak = false) => {
-                if (exercises.length === 0 || index >= exercises.length || index < 0) return;
+                const activeSequence = getActiveSequence();
+                if (!activeSequence || activeSequence.exercises.length === 0 || index >= activeSequence.exercises.length || index < 0) return;
                 
                 window.speechSynthesis.cancel();
                 if (commentTimeout) clearTimeout(commentTimeout);
                 
                 isBreakTime = false;
                 currentExerciseIndex = index;
-                const currentExercise = exercises[currentExerciseIndex];
+                const currentExercise = activeSequence.exercises[currentExerciseIndex];
                 timeLeft = currentExercise?.duration || 0;
                 updateUI();
                 
-                if (shouldSpeak && isSpeechEnabled) {
+                if (shouldSpeak && activeSequence.settings.speechEnabled) {
                     speakText(currentExercise.title);
-                    if (isCommentSpeechEnabled && currentExercise.comment && currentExercise.comment.trim() !== '') {
+                    if (activeSequence.settings.commentSpeechEnabled && currentExercise.comment && currentExercise.comment.trim() !== '') {
                         commentTimeout = setTimeout(() => {
                            if (!isPaused) speakText(currentExercise.comment);
                         }, 3000);
@@ -231,9 +200,12 @@
                 timerInterval = null;
                 updateUI();
             };
-
+            
             const startTimer = () => {
-                if (isPaused && !isBreakTime && timeLeft === (exercises[currentExerciseIndex]?.duration || 0)) {
+                const activeSequence = getActiveSequence();
+                if (!activeSequence) return;
+                
+                if (isPaused && !isBreakTime && timeLeft === (activeSequence.exercises[currentExerciseIndex]?.duration || 0)) {
                     setupExercise(currentExerciseIndex, true);
                 }
                 isPaused = false;
@@ -244,12 +216,12 @@
                     if (timeLeft < 0) {
                         if(endSound?.play) endSound.play().catch(e => console.error("Errore audio:", e));
                         
-                        if (!isBreakTime && currentExerciseIndex < exercises.length - 1) {
+                        if (!isBreakTime && currentExerciseIndex < activeSequence.exercises.length - 1) {
                             isBreakTime = true;
-                            timeLeft = 5;
+                            timeLeft = activeSequence.settings.breakDuration;
                             updateUI();
                         } else {
-                            if (currentExerciseIndex < exercises.length - 1) {
+                            if (currentExerciseIndex < activeSequence.exercises.length - 1) {
                                 setupExercise(currentExerciseIndex + 1, true);
                             } else {
                                 pauseTimer();
@@ -264,266 +236,451 @@
             };
 
             const handleStartPauseClick = () => {
-                if (detailsSection.open || exercises.length === 0) return;
-                if (isPaused && timeLeft <= 0 && currentExerciseIndex >= exercises.length - 1 && !isBreakTime) {
+                const activeSequence = getActiveSequence();
+                if (!activeSequence || activeSequence.exercises.length === 0) return;
+                
+                const openDetails = sequencesContainer.querySelector('details[open]');
+                if(openDetails) return;
+
+                if (isPaused && timeLeft <= 0 && currentExerciseIndex >= activeSequence.exercises.length - 1 && !isBreakTime) {
                     setupExercise(0, true); 
                 }
                 isPaused ? startTimer() : pauseTimer();
             };
-
+            
             const handleNextClick = () => {
+                const activeSequence = getActiveSequence();
+                if (!activeSequence) return;
                 pauseTimer();
-                if (currentExerciseIndex < exercises.length - 1) {
+                if (currentExerciseIndex < activeSequence.exercises.length - 1) {
                     setupExercise(currentExerciseIndex + 1, true);
                 }
             };
 
             const handleBackClick = () => {
+                const activeSequence = getActiveSequence();
+                if (!activeSequence) return;
                 pauseTimer();
                 if (currentExerciseIndex > 0) {
                     setupExercise(currentExerciseIndex - 1, true);
                 }
             };
+            
+            const migrateOldData = async () => {
+                const oldExercisesSnap = await getDocs(collection(db, `users/${userId}/exercises`));
+                const oldSettingsSnap = await getDocs(collection(db, `users/${userId}/settings`));
+                let oldSettings = {};
+                if(!oldSettingsSnap.empty) oldSettings = oldSettingsSnap.docs[0].data();
 
-            const createDefaultExercises = async () => {
-                const exercisesCollectionRef = collection(db, `users/${userId}/exercises`);
-                const defaultExercises = [
-                    { title: "Fai palming con le mani calde", duration: 12, comment: "" },
-                    { title: "Prossimo esercizio...", duration: 10, comment: "Rilassa gli occhi." },
-                    { title: "Guarda in su", duration: 12, comment: "" },
-                    { title: "Guarda in giù", duration: 7, comment: "" },
-                    { title: "Guarda dove vuoi", duration: 8, comment: "Senza sforzare." }
-                ];
+                const newSequenceRef = doc(collection(db, `users/${userId}/sequences`));
                 const batch = writeBatch(db);
-                defaultExercises.forEach((ex, index) => {
-                    const docRef = doc(exercisesCollectionRef);
-                    batch.set(docRef, { ...ex, order: index, createdAt: serverTimestamp() });
+
+                batch.set(newSequenceRef, {
+                    title: oldSettings.sequenceTitle || "Sequenza Migrata",
+                    isActive: true,
+                    createdAt: serverTimestamp(),
+                    settings: {
+                        speechEnabled: typeof oldSettings.speechEnabled === 'boolean' ? oldSettings.speechEnabled : true,
+                        commentSpeechEnabled: typeof oldSettings.commentSpeechEnabled ==='boolean' ? oldSettings.commentSpeechEnabled : true,
+                        breakDuration: typeof oldSettings.breakDuration === 'number' ? oldSettings.breakDuration : 5
+                    }
                 });
+
+                oldExercisesSnap.docs.forEach(oldDoc => {
+                    const newExerciseRef = doc(collection(db, newSequenceRef.path, 'exercises'));
+                    batch.set(newExerciseRef, oldDoc.data());
+                    batch.delete(oldDoc.ref);
+                });
+                 oldSettingsSnap.docs.forEach(doc => batch.delete(doc.ref));
+
                 await batch.commit();
             };
+            
+            const setupSequencesListener = () => {
+                if(unsubscribeFromSequences) unsubscribeFromSequences();
+                const sequencesRef = collection(db, `users/${userId}/sequences`);
 
-             const calculateTotalTime = () => {
-                if (exercises.length === 0) {
-                    totalDurationEl.textContent = '(00:00)';
-                    return;
-                }
-                const exerciseDuration = exercises.reduce((sum, ex) => sum + (ex.duration || 0), 0);
-                const breakDuration = (exercises.length > 1) ? (exercises.length - 1) * 5 : 0;
-                const totalSeconds = exerciseDuration + breakDuration;
-                totalDurationEl.textContent = `(${formatTime(totalSeconds)})`;
-            };
-
-            const setupSettingsListener = () => {
-                if (unsubscribeFromSettings) unsubscribeFromSettings();
-                const settingsDocRef = doc(db, `users/${userId}/settings/main`);
-                unsubscribeFromSettings = onSnapshot(settingsDocRef, (doc) => {
-                    const settings = doc.data() || {};
-                    isSpeechEnabled = typeof settings.speechEnabled === 'boolean' ? settings.speechEnabled : true;
-                    isCommentSpeechEnabled = typeof settings.commentSpeechEnabled === 'boolean' ? settings.commentSpeechEnabled : true;
-                    sequenceTitle = settings.sequenceTitle || "Sequenza Esercizi";
-
-                    speechToggle.checked = isSpeechEnabled;
-                    commentSpeechToggle.checked = isCommentSpeechEnabled;
-                    if (!isEditingTitle) {
-                        sequenceTitleEl.textContent = sequenceTitle;
+                unsubscribeFromSequences = onSnapshot(query(sequencesRef, orderBy("createdAt")), async (snapshot) => {
+                    if(snapshot.empty) {
+                        const oldExercisesExist = !(await getDocs(collection(db, `users/${userId}/exercises`))).empty;
+                        if(oldExercisesExist){
+                            loadingText.textContent = "Migrazione dati in corso...";
+                            await migrateOldData();
+                            return;
+                        }
                     }
+                    
+                    const newSequences = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), exercises: [], isEditingTitle: false }));
+
+                    if(newSequences.length > 0 && !newSequences.some(s => s.isActive)) {
+                        await handleActivateSequence(newSequences[0].id);
+                        return;
+                    }
+
+                    allSequences = newSequences;
+                    renderSequencesUI();
+                    
+                    exerciseUnsubscribers.forEach(unsub => unsub());
+                    exerciseUnsubscribers.clear();
+                    allSequences.forEach(seq => setupExercisesListener(seq.id));
+
+                    loadingOverlay.style.opacity = '0';
+                    loadingOverlay.style.pointerEvents = 'none';
                 });
             };
 
-            const setupFirestoreListener = () => {
-                if (unsubscribeFromExercises) unsubscribeFromExercises();
-                const exercisesCollectionRef = collection(db, `users/${userId}/exercises`);
-                
-                unsubscribeFromExercises = onSnapshot(exercisesCollectionRef, 
-                    async (snapshot) => {
-                        if (snapshot.empty && userId) {
-                            await createDefaultExercises();
-                            return;
-                        }
+            const setupExercisesListener = (sequenceId) => {
+                const exercisesRef = collection(db, `users/${userId}/sequences/${sequenceId}/exercises`);
+                const unsubscribe = onSnapshot(query(exercisesRef, orderBy("order")), (snapshot) => {
+                    const sequence = allSequences.find(s => s.id === sequenceId);
+                    if (!sequence) return;
 
-                        let serverExercises = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-                        const needsMigration = serverExercises.some(ex => typeof ex.order === 'undefined');
-                        if (needsMigration) {
-                            const batch = writeBatch(db);
-                            serverExercises
-                                .sort((a, b) => (a.createdAt?.toMillis() ?? 0) - (b.createdAt?.toMillis() ?? 0))
-                                .forEach((ex, index) => {
-                                    const docRef = doc(exercisesCollectionRef, ex.id);
-                                    batch.update(docRef, { order: index });
-                                });
-                            await batch.commit();
-                            return; 
-                        }
-
-                        exercises = serverExercises.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-                        renderExerciseList();
-                        calculateTotalTime();
-                        if (isPaused) setupExercise(currentExerciseIndex, false);
-                        
-                        loadingOverlay.style.opacity = '0';
-                        loadingOverlay.style.pointerEvents = 'none';
-                    },
-                    (error) => {
-                        console.error("Errore di Firestore:", error);
-                        loadingText.textContent = "Errore di connessione al database.";
-                        loadingText.classList.add('text-red-500');
+                    sequence.exercises = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    
+                    const activeSequence = getActiveSequence();
+                    if(activeSequence && activeSequence.id === sequenceId && isPaused){
+                        setupExercise(currentExerciseIndex, false);
                     }
-                );
+                    
+                    const totalDurationEl = document.querySelector(`details[data-sequence-id="${sequenceId}"] .total-duration`);
+                    if(totalDurationEl){
+                        const exerciseDuration = sequence.exercises.reduce((sum, ex) => sum + (ex.duration || 0), 0);
+                        const breakDurationTotal = (sequence.exercises.length > 1) ? (sequence.exercises.length - 1) * sequence.settings.breakDuration : 0;
+                        totalDurationEl.textContent = `(${formatTime(exerciseDuration + breakDurationTotal)})`;
+                    }
+
+                    const exerciseListEl = document.querySelector(`details[data-sequence-id="${sequenceId}"] .exercise-list`);
+                    if(exerciseListEl) renderExerciseList(exerciseListEl, sequence.exercises, sequence.id);
+                });
+                exerciseUnsubscribers.set(sequenceId, unsubscribe);
             };
 
-            const renderExerciseList = () => {
-                exerciseListContainer.innerHTML = '';
+            const renderSequencesUI = () => { const renderSequencesUI = () => {
+                sequencesContainer.innerHTML = '';
+                allSequences.forEach(seq => {
+                    const details = document.createElement('details');
+                    details.className = 'bg-gray-50 rounded-lg border';
+                    details.dataset.sequenceId = seq.id;
+                    details.innerHTML = `
+                        <summary class="details-summary cursor-pointer p-2 text-sm font-medium text-gray-700 list-none flex justify-between items-center bg-gray-100 rounded-t-lg">
+                            <div class="flex items-center space-x-2 flex-grow min-w-0">
+                               <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                                    <input type="checkbox" ${seq.isActive ? 'checked' : ''} class="sr-only peer activate-toggle">
+                                    <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-2 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                </label>
+                               <div class="sequence-title-container flex-grow truncate">
+                                   <span class="sequence-title truncate">${seq.title}</span>
+                               </div>
+                               <span class="total-duration text-xs text-gray-500 font-normal whitespace-nowrap"></span>
+                            </div>
+                             <div class="flex items-center space-x-2 flex-shrink-0">
+                               <button class="edit-title-btn p-1 rounded-full hover:bg-gray-200">${pencilIcon}</button>
+                               <svg class="w-4 h-4 transition-transform duration-200 transform details-arrow" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                            </div>
+                        </summary>
+                         <style> details[open] .details-arrow { transform: rotate(180deg); } </style>
+                        <div class="p-3 border-t flex justify-between items-center bg-gray-100">
+                           <label class="text-sm font-medium text-gray-700">Leggi titoli</label>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" ${seq.settings.speechEnabled ? 'checked' : ''} data-setting="speechEnabled" class="sr-only peer setting-toggle">
+                                <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-2 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                           </label>
+                        </div>
+                        <div class="p-3 border-t flex justify-between items-center bg-gray-100">
+                           <label class="text-sm font-medium text-gray-700">Leggi commenti</label>
+                           <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" ${seq.settings.commentSpeechEnabled ? 'checked' : ''} data-setting="commentSpeechEnabled" class="sr-only peer setting-toggle">
+                                <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-2 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                           </label>
+                        </div>
+                        <div class="p-3 border-t flex justify-between items-center bg-gray-100">
+                            <label class="text-sm font-medium text-gray-700">Pausa (sec)</label>
+                            <input type="number" value="${seq.settings.breakDuration}" data-setting="breakDuration" min="5" max="120" class="w-20 p-1 border rounded-md text-sm text-center setting-input">
+                        </div>
+                        <div class="exercise-list p-3 border-t max-h-48 overflow-y-auto bg-white"></div>
+                        <div class="p-2 border-t bg-gray-100 rounded-b-lg">
+                           <button class="add-exercise-btn w-full flex items-center justify-center py-1 text-sm text-blue-600 hover:bg-blue-100 rounded-md">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                <span class="ml-1">Aggiungi Riga</span>
+                           </button>
+                        </div>
+                    `;
+                    sequencesContainer.appendChild(details);
+                });
+            }; };
+            const renderExerciseList = (container, exercises, sequenceId) => { const renderExerciseList = (container, exercises, sequenceId) => {
+                container.innerHTML = '';
                 exercises.forEach((exercise, index) => {
                     const row = document.createElement('div');
                     row.className = 'flex items-start space-x-1 mb-2';
+                    row.dataset.exerciseId = exercise.id;
                     row.innerHTML = `
                         <div class="flex-grow">
-                            <input type="text" value="${exercise.title}" placeholder="Titolo Esercizio" data-id="${exercise.id}" data-field="title" class="w-full p-1 border rounded-md text-sm">
-                            <textarea placeholder="Aggiungi un commento..." data-id="${exercise.id}" data-field="comment" class="w-full mt-1 p-1 border rounded-md text-xs h-10 resize-none">${exercise.comment || ''}</textarea>
+                            <input type="text" value="${exercise.title}" placeholder="Titolo Esercizio" data-field="title" class="w-full p-1 border rounded-md text-sm">
+                            <textarea placeholder="Aggiungi un commento..." data-field="comment" class="w-full mt-1 p-1 border rounded-md text-xs h-10 resize-none">${exercise.comment || ''}</textarea>
                         </div>
                         <div class="flex-shrink-0 flex flex-col items-center space-y-1 pt-1">
-                            <input type="number" value="${exercise.duration}" data-id="${exercise.id}" data-field="duration" class="w-16 p-1 border rounded-md text-sm text-center">
+                            <input type="number" value="${exercise.duration}" data-field="duration" class="w-16 p-1 border rounded-md text-sm text-center">
                             <div class="flex items-center">
-                                <button data-id="${exercise.id}" data-direction="up" class="move-btn p-1 text-gray-500 hover:bg-gray-200 rounded-full" ${index === 0 ? 'style="visibility: hidden;"' : ''}>
+                                <button data-direction="up" class="move-btn p-1 text-gray-500 hover:bg-gray-200 rounded-full" ${index === 0 ? 'style="visibility: hidden;"' : ''}>
                                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
                                 </button>
-                                <button data-id="${exercise.id}" data-direction="down" class="move-btn p-1 text-gray-500 hover:bg-gray-200 rounded-full" ${index === exercises.length - 1 ? 'style="visibility: hidden;"' : ''}>
+                                <button data-direction="down" class="move-btn p-1 text-gray-500 hover:bg-gray-200 rounded-full" ${index === exercises.length - 1 ? 'style="visibility: hidden;"' : ''}>
                                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
                                 </button>
-                                <button data-id="${exercise.id}" class="delete-btn p-1 text-red-500 hover:bg-red-100 rounded-full">
+                                <button class="delete-btn p-1 text-red-500 hover:bg-red-100 rounded-full">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
                                 </button>
                             </div>
                         </div>
                     `;
-                    exerciseListContainer.appendChild(row);
+                    container.appendChild(row);
                 });
-            };
+            }; };
 
-            const updateExerciseInFirestore = async (e) => {
-                const id = e.target.dataset.id;
-                const field = e.target.dataset.field;
-                const value = field === 'duration' ? parseInt(e.target.value) || 0 : e.target.value;
-                const exercisesCollectionRef = collection(db, `users/${userId}/exercises`);
-                await updateDoc(doc(exercisesCollectionRef, id), { [field]: value });
-            };
-
-            const handleAddRow = async () => {
-                const exercisesCollectionRef = collection(db, `users/${userId}/exercises`);
-                await addDoc(exercisesCollectionRef, { 
-                    title: 'Nuovo Esercizio', 
-                    duration: 10, 
-                    comment: '',
-                    order: exercises.length, 
-                    createdAt: serverTimestamp() 
-                });
-            };
-
-            const handleDeleteRow = async (id) => {
-                const exercisesCollectionRef = collection(db, `users/${userId}/exercises`);
-                await deleteDoc(doc(exercisesCollectionRef, id));
-            };
-
-            const handleMoveExercise = async (id, direction) => {
-                const currentIndex = exercises.findIndex(ex => ex.id === id);
-                if (currentIndex === -1) return;
-
-                const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
-                if (targetIndex < 0 || targetIndex >= exercises.length) return;
-
-                const exerciseToMove = exercises[currentIndex];
-                const targetExercise = exercises[targetIndex];
-
-                const exercisesCollectionRef = collection(db, `users/${userId}/exercises`);
-                const batch = writeBatch(db);
-                
-                const docToMoveRef = doc(exercisesCollectionRef, exerciseToMove.id);
-                const targetDocRef = doc(exercisesCollectionRef, targetExercise.id);
-                
-                batch.update(docToMoveRef, { order: targetExercise.order });
-                batch.update(targetDocRef, { order: exerciseToMove.order });
-                
-                try {
-                    await batch.commit();
-                } catch (error) {
-                    console.error("Errore nel riordinare gli esercizi:", error);
-                }
-            };
-
-            const updateSetting = async (settingKey, value) => {
+           const updateSetting = async (sequenceId, settingKey, value) => {
                 if (!userId) return;
-                const settingsDocRef = doc(db, `users/${userId}/settings/main`);
-                await setDoc(settingsDocRef, { [settingKey]: value }, { merge: true });
+                const settingsDocRef = doc(db, `users/${userId}/sequences/${sequenceId}`);
+                await updateDoc(settingsDocRef, { [`settings.${settingKey}`]: value });
             };
+
+            const handleAddSequence = async () => {
+                const newSequence = {
+                    title: `Nuova Sequenza ${allSequences.length + 1}`,
+                    isActive: allSequences.length === 0,
+                    createdAt: serverTimestamp(),
+                    settings: {
+                        speechEnabled: true,
+                        commentSpeechEnabled: true,
+                        breakDuration: 5
+                    }
+                };
+                const sequencesRef = collection(db, `users/${userId}/sequences`);
+                const newDocRef = await addDoc(sequencesRef, newSequence);
+                // Aggiungi un primo esercizio di esempio
+                await addDoc(collection(db, newDocRef.path, 'exercises'), {
+                     title: 'Primo Esercizio', duration: 10, comment: '', order: 0, createdAt: serverTimestamp() 
+                });
+            };
+
+             const handleActivateSequence = async (sequenceIdToActivate) => {
+                const batch = writeBatch(db);
+                allSequences.forEach(seq => {
+                    const docRef = doc(db, `users/${userId}/sequences/${seq.id}`);
+                    batch.update(docRef, { isActive: seq.id === sequenceIdToActivate });
+                });
+                await batch.commit();
+             };
 
             onAuthStateChanged(auth, (user) => {
                 if (user) {
                     userId = user.uid;
                     updateAuthUI(user);
-                    setupFirestoreListener();
-                    setupSettingsListener();
+                    setupSequencesListener();
                 } else {
-                    signInAnonymously(auth).catch(error => {
-                        console.error("Errore di accesso anonimo:", error);
-                        loadingText.textContent = "Errore di autenticazione.";
-                    });
+                    signInAnonymously(auth).catch(error => console.error("Anonymous sign-in error:", error));
                 }
             });
 
             startPauseBtn.addEventListener('click', handleStartPauseClick);
             nextBtn.addEventListener('click', handleNextClick);
             backBtn.addEventListener('click', handleBackClick);
-            addExerciseBtn.addEventListener('click', handleAddRow);
-            speechToggle.addEventListener('change', () => updateSetting('speechEnabled', speechToggle.checked));
-            commentSpeechToggle.addEventListener('change', () => updateSetting('commentSpeechEnabled', commentSpeechToggle.checked));
-            exerciseListContainer.addEventListener('change', (e) => (e.target.matches('input') || e.target.matches('textarea')) && updateExerciseInFirestore(e));
-            
-            exerciseListContainer.addEventListener('click', (e) => {
-                const deleteBtn = e.target.closest('.delete-btn');
-                if (deleteBtn) {
-                    handleDeleteRow(deleteBtn.dataset.id);
-                    return;
+            addSequenceBtn.addEventListener('click', handleAddSequence);
+
+            sequencesContainer.addEventListener('click', async (e) => {
+                const detailsEl = e.target.closest('details');
+                if (!detailsEl) return;
+                const sequenceId = detailsEl.dataset.sequenceId;
+                const sequence = allSequences.find(s => s.id === sequenceId);
+
+                // Activate Toggle
+                if (e.target.classList.contains('activate-toggle')) {
+                    await handleActivateSequence(sequenceId);
                 }
 
+                // Edit Title Button
+                const editBtn = e.target.closest('.edit-title-btn');
+                if (editBtn) {
+                     e.preventDefault(); e.stopPropagation();
+                     const titleContainer = detailsEl.querySelector('.sequence-title-container');
+                     if(sequence.isEditingTitle){ // Save
+                        const input = titleContainer.querySelector('input');
+                        const newTitle = input.value.trim();
+                        if(newTitle) await updateDoc(doc(db, `users/${userId}/sequences/${sequenceId}`), { title: newTitle });
+                        sequence.isEditingTitle = false;
+                        titleContainer.innerHTML = `<span class="sequence-title truncate">${newTitle || sequence.title}</span>`;
+                        editBtn.innerHTML = pencilIcon;
+                     } else { // Edit
+                        sequence.isEditingTitle = true;
+                        titleContainer.innerHTML = `<input type="text" class="text-sm font-medium bg-white border rounded px-1 -my-1 w-full" value="${sequence.title}">`;
+                        editBtn.innerHTML = checkIcon;
+                        titleContainer.querySelector('input').focus();
+                     }
+                }
+
+                // Add Exercise
+                if (e.target.closest('.add-exercise-btn')) {
+                    const newExercise = { title: 'Nuovo Esercizio', duration: 10, comment: '', order: sequence.exercises.length, createdAt: serverTimestamp() };
+                    await addDoc(collection(db, `users/${userId}/sequences/${sequenceId}/exercises`), newExercise);
+                }
+                
+                const exerciseRow = e.target.closest('div[data-exercise-id]');
+                if(!exerciseRow) return;
+                const exerciseId = exerciseRow.dataset.exerciseId;
+                
+                // Delete Exercise
+                 if (e.target.closest('.delete-btn')) {
+                    await deleteDoc(doc(db, `users/${userId}/sequences/${sequenceId}/exercises/${exerciseId}`));
+                }
+
+                // Move Exercise
                 const moveBtn = e.target.closest('.move-btn');
                 if (moveBtn) {
-                    handleMoveExercise(moveBtn.dataset.id, moveBtn.dataset.direction);
-                }
-            });
-
-            editTitleBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-
-                if (isEditingTitle) { // Salva
-                    const input = document.getElementById('title-input');
-                    const newTitle = input.value.trim();
-                    isEditingTitle = false;
-                    
-                    if (newTitle && newTitle !== sequenceTitle) {
-                         updateSetting('sequenceTitle', newTitle);
-                    } else {
-                        sequenceTitleEl.textContent = sequenceTitle;
+                    const direction = moveBtn.dataset.direction;
+                    const currentIndex = sequence.exercises.findIndex(ex => ex.id === exerciseId);
+                    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+                    if(targetIndex >= 0 && targetIndex < sequence.exercises.length) {
+                        const batch = writeBatch(db);
+                        const currentExRef = doc(db, `users/${userId}/sequences/${sequenceId}/exercises/${exerciseId}`);
+                        const targetExRef = doc(db, `users/${userId}/sequences/${sequenceId}/exercises/${sequence.exercises[targetIndex].id}`);
+                        batch.update(currentExRef, { order: sequence.exercises[targetIndex].order });
+                        batch.update(targetExRef, { order: sequence.exercises[currentIndex].order });
+                        await batch.commit();
                     }
-                     editTitleBtn.innerHTML = pencilIcon;
-
-                } else { // Modifica
-                    isEditingTitle = true;
-                    const currentTitle = sequenceTitleEl.textContent;
-                    sequenceTitleEl.innerHTML = `<input type="text" id="title-input" class="text-sm font-medium bg-white border rounded px-1 -my-1" value="${currentTitle}">`;
-                    editTitleBtn.innerHTML = checkIcon;
-                    document.getElementById('title-input').focus();
                 }
             });
 
-            detailsSection.addEventListener('toggle', () => detailsSection.open && pauseTimer());
+            sequencesContainer.addEventListener('change', async (e) => {
+                const detailsEl = e.target.closest('details');
+                if (!detailsEl) return;
+                const sequenceId = detailsEl.dataset.sequenceId;
+                
+                // Settings Toggles
+                if (e.target.classList.contains('setting-toggle')) {
+                    const settingKey = e.target.dataset.setting;
+                    const value = e.target.checked;
+                    await updateSetting(sequenceId, settingKey, value);
+                }
+                 if (e.target.classList.contains('setting-input')) {
+                    const settingKey = e.target.dataset.setting;
+                    let value = parseInt(e.target.value, 10);
+                     if(settingKey === 'breakDuration'){
+                         if (isNaN(value)) value = 5;
+                         if (value < 5) value = 5;
+                         if (value > 120) value = 120;
+                         e.target.value = value;
+                     }
+                    await updateSetting(sequenceId, settingKey, value);
+                 }
+
+                // Exercise inputs
+                const exerciseRow = e.target.closest('div[data-exercise-id]');
+                if(exerciseRow){
+                    const exerciseId = exerciseRow.dataset.exerciseId;
+                    const field = e.target.dataset.field;
+                    const value = e.target.type === 'number' ? parseInt(e.target.value) || 0 : e.target.value;
+                    await updateDoc(doc(db, `users/${userId}/sequences/${sequenceId}/exercises/${exerciseId}`), { [field]: value });
+                }
+            });
 
             if ('serviceWorker' in navigator) {
                 window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').then(reg => console.log('SW registrato'), err => console.log('Errore SW:', err)));
             }
+
         });
     </script>
 </body>
 </html>
+```
+
+Per completare il codice (dato che è molto lungo), ecco il resto delle funzioni JavaScript da inserire **all'interno dello script principale**, dove ci sono i commenti `/* ... (pasted below) ... */`. Sostituisci quei commenti con i blocchi di codice corrispondenti qui sotto.
+
+**Funzione `renderSequencesUI`:**
+```javascript
+            const renderSequencesUI = () => {
+                sequencesContainer.innerHTML = '';
+                allSequences.forEach(seq => {
+                    const details = document.createElement('details');
+                    details.className = 'bg-gray-50 rounded-lg border';
+                    details.dataset.sequenceId = seq.id;
+                    details.innerHTML = `
+                        <summary class="details-summary cursor-pointer p-2 text-sm font-medium text-gray-700 list-none flex justify-between items-center bg-gray-100 rounded-t-lg">
+                            <div class="flex items-center space-x-2 flex-grow min-w-0">
+                               <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                                    <input type="checkbox" ${seq.isActive ? 'checked' : ''} class="sr-only peer activate-toggle">
+                                    <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-2 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                </label>
+                               <div class="sequence-title-container flex-grow truncate">
+                                   <span class="sequence-title truncate">${seq.title}</span>
+                               </div>
+                               <span class="total-duration text-xs text-gray-500 font-normal whitespace-nowrap"></span>
+                            </div>
+                             <div class="flex items-center space-x-2 flex-shrink-0">
+                               <button class="edit-title-btn p-1 rounded-full hover:bg-gray-200">${pencilIcon}</button>
+                               <svg class="w-4 h-4 transition-transform duration-200 transform details-arrow" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                            </div>
+                        </summary>
+                         <style> details[open] .details-arrow { transform: rotate(180deg); } </style>
+                        <div class="p-3 border-t flex justify-between items-center bg-gray-100">
+                           <label class="text-sm font-medium text-gray-700">Leggi titoli</label>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" ${seq.settings.speechEnabled ? 'checked' : ''} data-setting="speechEnabled" class="sr-only peer setting-toggle">
+                                <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-2 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                           </label>
+                        </div>
+                        <div class="p-3 border-t flex justify-between items-center bg-gray-100">
+                           <label class="text-sm font-medium text-gray-700">Leggi commenti</label>
+                           <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" ${seq.settings.commentSpeechEnabled ? 'checked' : ''} data-setting="commentSpeechEnabled" class="sr-only peer setting-toggle">
+                                <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-2 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                           </label>
+                        </div>
+                        <div class="p-3 border-t flex justify-between items-center bg-gray-100">
+                            <label class="text-sm font-medium text-gray-700">Pausa (sec)</label>
+                            <input type="number" value="${seq.settings.breakDuration}" data-setting="breakDuration" min="5" max="120" class="w-20 p-1 border rounded-md text-sm text-center setting-input">
+                        </div>
+                        <div class="exercise-list p-3 border-t max-h-48 overflow-y-auto bg-white"></div>
+                        <div class="p-2 border-t bg-gray-100 rounded-b-lg">
+                           <button class="add-exercise-btn w-full flex items-center justify-center py-1 text-sm text-blue-600 hover:bg-blue-100 rounded-md">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                <span class="ml-1">Aggiungi Riga</span>
+                           </button>
+                        </div>
+                    `;
+                    sequencesContainer.appendChild(details);
+                });
+            };
+```
+
+**Funzione `renderExerciseList`:**
+```javascript
+            const renderExerciseList = (container, exercises, sequenceId) => {
+                container.innerHTML = '';
+                exercises.forEach((exercise, index) => {
+                    const row = document.createElement('div');
+                    row.className = 'flex items-start space-x-1 mb-2';
+                    row.dataset.exerciseId = exercise.id;
+                    row.innerHTML = `
+                        <div class="flex-grow">
+                            <input type="text" value="${exercise.title}" placeholder="Titolo Esercizio" data-field="title" class="w-full p-1 border rounded-md text-sm">
+                            <textarea placeholder="Aggiungi un commento..." data-field="comment" class="w-full mt-1 p-1 border rounded-md text-xs h-10 resize-none">${exercise.comment || ''}</textarea>
+                        </div>
+                        <div class="flex-shrink-0 flex flex-col items-center space-y-1 pt-1">
+                            <input type="number" value="${exercise.duration}" data-field="duration" class="w-16 p-1 border rounded-md text-sm text-center">
+                            <div class="flex items-center">
+                                <button data-direction="up" class="move-btn p-1 text-gray-500 hover:bg-gray-200 rounded-full" ${index === 0 ? 'style="visibility: hidden;"' : ''}>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+                                </button>
+                                <button data-direction="down" class="move-btn p-1 text-gray-500 hover:bg-gray-200 rounded-full" ${index === exercises.length - 1 ? 'style="visibility: hidden;"' : ''}>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                                </button>
+                                <button class="delete-btn p-1 text-red-500 hover:bg-red-100 rounded-full">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    container.appendChild(row);
+                });
+            };
 
