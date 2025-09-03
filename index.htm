@@ -355,7 +355,7 @@
                 exerciseUnsubscribers.set(sequenceId, unsubscribe);
             };
 
-            const renderSequencesUI = () => { const renderSequencesUI = () => {
+            const renderSequencesUI = ()  => {
                 sequencesContainer.innerHTML = '';
                 allSequences.forEach(seq => {
                     const details = document.createElement('details');
@@ -407,8 +407,9 @@
                     `;
                     sequencesContainer.appendChild(details);
                 });
-            }; };
-            const renderExerciseList = (container, exercises, sequenceId) => { const renderExerciseList = (container, exercises, sequenceId) => {
+            }; 
+        
+            const renderExerciseList = (container, exercises, sequenceId) => {
                 container.innerHTML = '';
                 exercises.forEach((exercise, index) => {
                     const row = document.createElement('div');
@@ -436,7 +437,7 @@
                     `;
                     container.appendChild(row);
                 });
-            }; };
+            }; 
 
            const updateSetting = async (sequenceId, settingKey, value) => {
                 if (!userId) return;
@@ -494,9 +495,10 @@
                 const sequence = allSequences.find(s => s.id === sequenceId);
 
                 // Activate Toggle
-                if (e.target.classList.contains('activate-toggle')) {
-                    await handleActivateSequence(sequenceId);
-                }
+               const activateToggle = e.target.closest('.activate-toggle');
+                    if (activateToggle) {
+                      await handleActivateSequence(sequenceId);
+                    }
 
                 // Edit Title Button
                 const editBtn = e.target.closest('.edit-title-btn');
@@ -591,6 +593,7 @@
     </script>
 </body>
 </html>
+
 
 
 
