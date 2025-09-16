@@ -62,16 +62,13 @@
 
     </div>
     
-    <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
-    <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
-    
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut, linkWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
         import { getFirestore, collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp, writeBatch, setDoc, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
         // IMPORTANTE: Sostituisci questa stringa con il tuo ID Client OAuth 2.0 da Google Cloud Console
-        const GOOGLE_CLIENT_ID = "508054707957-lb81rgk20vk0vr7bkkufsd83m80l5338.apps.googleusercontent.com";
+        const GOOGLE_CLIENT_ID = "IL_TUO_CLIENT_ID.apps.googleusercontent.com";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAoSqwkSoatQLABaTL17EnU4pA40kcWonY",
@@ -94,29 +91,43 @@
         let gapiReady = false;
         let gisReady = false;
 
-        window.gapiLoaded = () => {
-            gapi.load('client', () => {
-                gapi.client.init({}).then(() => {
-                    gapi.client.load('calendar', 'v3');
-                    gapiReady = true;
-                });
+        function loadScript(src) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.async = true;
+                script.defer = true;
+                script.onload = resolve;
+                script.onerror = reject;
+                document.body.appendChild(script);
             });
-        };
+        }
 
-        window.gisLoaded = () => {
-            tokenClient = google.accounts.oauth2.initTokenClient({
-                client_id: GOOGLE_CLIENT_ID,
-                scope: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly',
-                callback: (tokenResponse) => {
-                    if (tokenResponse && tokenResponse.access_token) {
-                        const event = new CustomEvent('google-token-received', { detail: tokenResponse });
-                        document.dispatchEvent(event);
-                    }
-                },
-            });
-            gisReady = true;
-        };
-        
+        async function initializeGoogleApis() {
+            try {
+                await loadScript('https://apis.google.com/js/api.js');
+                await new Promise(resolve => gapi.load('client', resolve));
+                await gapi.client.init({});
+                await gapi.client.load('calendar', 'v3');
+                gapiReady = true;
+
+                await loadScript('https://accounts.google.com/gsi/client');
+                tokenClient = google.accounts.oauth2.initTokenClient({
+                    client_id: GOOGLE_CLIENT_ID,
+                    scope: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly',
+                    callback: (tokenResponse) => {
+                        if (tokenResponse && tokenResponse.access_token) {
+                            gapi.client.setToken(tokenResponse);
+                            listUserCalendars();
+                        }
+                    },
+                });
+                gisReady = true;
+            } catch (error) {
+                console.error("Errore durante l'inizializzazione delle API di Google:", error);
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             const authContainer = document.getElementById('auth-container');
             const titleEl = document.getElementById('exercise-title');
@@ -691,6 +702,7 @@
                     userId = user.uid;
                     updateAuthUI(user);
                     setupSequencesListener();
+                    initializeGoogleApis();
                 } else {
                     signInAnonymously(auth).catch(error => console.error("Anonymous sign-in error:", error));
                 }
