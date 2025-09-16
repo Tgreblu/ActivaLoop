@@ -104,29 +104,35 @@
         }
 
         async function initializeGoogleApis() {
-            try {
-                await loadScript('https://apis.google.com/js/api.js');
-                await new Promise(resolve => gapi.load('client', resolve));
-                await gapi.client.init({});
-                await gapi.client.load('calendar', 'v3');
-                gapiReady = true;
+  try {
+    // Carica GAPI
+    await loadScript('https://apis.google.com/js/api.js');
+    await new Promise(resolve => gapi.load('client', resolve));
+    await gapi.client.init({
+      discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest']
+    });
+    gapiReady = true;
 
-                await loadScript('https://accounts.google.com/gsi/client');
-                tokenClient = google.accounts.oauth2.initTokenClient({
-                    client_id: GOOGLE_CLIENT_ID,
-                    scope: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly',
-                    callback: (tokenResponse) => {
-                        if (tokenResponse && tokenResponse.access_token) {
-                            gapi.client.setToken(tokenResponse);
-                            listUserCalendars();
-                        }
-                    },
-                });
-                gisReady = true;
-            } catch (error) {
-                console.error("Errore durante l'inizializzazione delle API di Google:", error);
-            }
+    // Carica GIS
+    await loadScript('https://accounts.google.com/gsi/client');
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: GOOGLE_CLIENT_ID, // <-- deve essere reale
+      scope: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly',
+      // Alla prima volta è meglio forzare il consenso; poi potrai usare prompt: ''.
+      prompt: 'consent',
+      callback: (tokenResponse) => {
+        if (tokenResponse && tokenResponse.access_token) {
+          gapi.client.setToken(tokenResponse);
+          // Se avevi chiesto di salvare un evento, continua il flusso
+          listUserCalendars();
         }
+      },
+    });
+    gisReady = true;
+  } catch (error) {
+    console.error("Errore durante l'inizializzazione delle API di Google:", error);
+  }
+}
 
         document.addEventListener('DOMContentLoaded', () => {
             const authContainer = document.getElementById('auth-container');
@@ -630,14 +636,23 @@
                  });
             };
 
-            const handleCalendarSaveRequest = (startTime, endTime, title) => {
-                if (!gisReady || !gapiReady) {
-                    showConfirmationModal("L'API di Google Calendar si sta inizializzando, riprova tra qualche istante.", () => {}, true);
-                    return;
-                }
-                eventDetailsToSave = { startTime, endTime, title };
-                tokenClient.requestAccessToken({ prompt: '' });
-            };
+           const handleCalendarSaveRequest = (startTime, endTime, title) => {
+  if (!gisReady || !gapiReady) {
+    showConfirmationModal("L'API di Google Calendar si sta inizializzando, riprova tra qualche istante.", () => {}, true);
+    return;
+  }
+  eventDetailsToSave = { startTime, endTime, title };
+
+  // Se abbiamo già un token valido, usalo senza riprompt
+  const existing = gapi.client.getToken && gapi.client.getToken();
+  if (existing && existing.access_token) {
+    listUserCalendars();
+    return;
+  }
+
+  // Prima volta: prompt 'consent'; nelle successive potrai cambiare in ''.
+  tokenClient.requestAccessToken({ prompt: 'consent' });
+};
 
             const listUserCalendars = async () => {
                 if (!eventDetailsToSave) return;
@@ -837,5 +852,6 @@
     </script>
 </body>
 </html>
+
 
 
