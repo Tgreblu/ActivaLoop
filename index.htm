@@ -68,7 +68,7 @@
         import { getFirestore, collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp, writeBatch, setDoc, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
         // --- CONFIGURAZIONE GOOGLE ---
-        const GOOGLE_CLIENT_ID = "508054707957-lb81rgk20vk0vr7bkkufsd83m80l5338.apps.googleusercontent.com"; // <--- INSERISCI QUI IL TUO ID
+        const GOOGLE_CLIENT_ID = "508054707957-lb81rgk20vk0vr7bkkufsd83m80l5338.apps.googleusercontent.com";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAoSqwkSoatQLABaTL17EnU4pA40kcWonY",
@@ -91,7 +91,7 @@
         let tokenClient;
         let gapiReady = false;
         let gisReady = false;
-        let preferredCalendarId = 'primary';
+        let preferredCalendarId = 'primary'; // Default
 
         // --- CARICAMENTO DINAMICO API GOOGLE ---
         const loadScript = (src) => {
@@ -115,7 +115,10 @@
                 // Carica GAPI
                 await loadScript('https://apis.google.com/js/api.js');
                 await new Promise((resolve) => gapi.load('client', resolve));
+                
+                // IMPORTANTE: Inizializza GAPI con API Key per evitare errori di quota
                 await gapi.client.init({
+                    apiKey: firebaseConfig.apiKey,
                     discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest"],
                 });
                 gapiReady = true;
@@ -124,7 +127,7 @@
                 await loadScript('https://accounts.google.com/gsi/client');
                 tokenClient = google.accounts.oauth2.initTokenClient({
                     client_id: GOOGLE_CLIENT_ID,
-                    scope: 'https://www.googleapis.com/auth/calendar.events',
+                    scope: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly', // Scopes più ampi
                     callback: (tokenResponse) => {
                         if (tokenResponse && tokenResponse.access_token) {
                             gapi.client.setToken(tokenResponse);
@@ -140,7 +143,7 @@
                     },
                 });
                 gisReady = true;
-                console.log("Google APIs initialized");
+                console.log("Google APIs initialized correctly");
             } catch (error) {
                 console.error("Errore inizializzazione Google APIs:", error);
             }
@@ -213,6 +216,7 @@
             const signInWithGoogle = async () => {
                 const provider = new GoogleAuthProvider();
                 provider.addScope('https://www.googleapis.com/auth/calendar.events');
+                provider.addScope('https://www.googleapis.com/auth/calendar.readonly');
                 try {
                     const result = await signInWithPopup(auth, provider);
                     const credential = GoogleAuthProvider.credentialFromResult(result);
@@ -220,6 +224,7 @@
                     
                     if (accessToken && gapiReady) {
                         gapi.client.setToken({ access_token: accessToken });
+                        console.log("Token impostato dopo login");
                     }
 
                     if (auth.currentUser && auth.currentUser.isAnonymous) {
@@ -331,7 +336,7 @@
                     timeLeft--;
                     
                     if (timeLeft < 0) {
-                        timeLeft = 0; // Fix per logica
+                        timeLeft = 0; // Fix per evitare -1:-1
                         if (isBreakTime) {
                             setupExercise(currentExerciseIndex + 1, true);
                         } else {
@@ -820,8 +825,6 @@
             nextBtn.addEventListener('click', handleNextClick);
             backBtn.addEventListener('click', handleBackClick);
             addSequenceBtn.addEventListener('click', handleAddSequence);
-            
-            // document.addEventListener('google-token-received'...) non serve più con la nuova logica
 
             sequencesContainer.addEventListener('click', async (e) => {
                 const detailsEl = e.target.closest('details');
