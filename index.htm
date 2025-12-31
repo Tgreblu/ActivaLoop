@@ -68,7 +68,6 @@
         import { getFirestore, collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp, writeBatch, setDoc, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
         // --- CONFIGURAZIONE GOOGLE ---
-        // INSERISCI QUI IL TUO ID CLIENT
         const GOOGLE_CLIENT_ID = "508054707957-lb81rgk20vk0vr7bkkufsd83m80l5338.apps.googleusercontent.com";
 
         const firebaseConfig = {
@@ -91,12 +90,15 @@
         let eventDetailsToSave = null;
         let tokenClient;
         let gapiReady = false;
-        let gisReady = false;
-        let preferredCalendarId = 'primary'; // Default
+        let preferredCalendarId = 'primary';
 
-        // --- CARICAMENTO DINAMICO API GOOGLE (SENZA CONFLITTI) ---
+        // --- CARICAMENTO DINAMICO API GOOGLE ---
         const loadScript = (src) => {
             return new Promise((resolve, reject) => {
+                if (document.querySelector(`script[src="${src}"]`)) {
+                    resolve();
+                    return;
+                }
                 const script = document.createElement('script');
                 script.src = src;
                 script.async = true;
@@ -112,8 +114,9 @@
                 // Carica GAPI
                 await loadScript('https://apis.google.com/js/api.js');
                 await new Promise((resolve) => gapi.load('client', resolve));
-                await gapi.client.init({});
-                await gapi.client.load('calendar', 'v3');
+                await gapi.client.init({
+                    discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest"],
+                });
                 gapiReady = true;
 
                 // Carica GIS
@@ -124,6 +127,7 @@
                     callback: (tokenResponse) => {
                         if (tokenResponse && tokenResponse.access_token) {
                             gapi.client.setToken(tokenResponse);
+                            // Se c'è un evento in sospeso, riprendi il salvataggio
                             if (eventDetailsToSave) {
                                 if (eventDetailsToSave.isAuto) {
                                     createCalendarEvent(preferredCalendarId, eventDetailsToSave);
@@ -134,8 +138,7 @@
                         }
                     },
                 });
-                gisReady = true;
-                console.log("Google APIs initialized");
+                console.log("Google APIs initialized successfully");
             } catch (error) {
                 console.error("Errore inizializzazione Google APIs:", error);
             }
@@ -213,9 +216,12 @@
                     const result = await signInWithPopup(auth, provider);
                     const credential = GoogleAuthProvider.credentialFromResult(result);
                     const accessToken = credential.accessToken;
-                    if (accessToken && gapiLoaded) {
+                    
+                    // Imposta il token per GAPI se le librerie sono pronte
+                    if (accessToken && gapiReady) {
                         gapi.client.setToken({ access_token: accessToken });
                     }
+
                     if (auth.currentUser && auth.currentUser.isAnonymous) {
                         await linkWithCredential(auth.currentUser, credential);
                     }
@@ -433,16 +439,6 @@
 
                     if(newSequences.length > 0 && !newSequences.some(s => s.isActive)) {
                         await handleActivateSequence(newSequences[0].id);
-                        return;
-                    }
-                    // Primo avvio assoluto
-                    if(newSequences.length === 0) {
-                         const newSequence = {
-                            title: "Sequenza Base", isActive: true, createdAt: serverTimestamp(),
-                            settings: { speechEnabled: true, commentSpeechEnabled: true, breakDuration: 5, autoCalendarSave: false }
-                        };
-                        const ref = await addDoc(collection(db, `users/${userId}/sequences`), newSequence);
-                        await addDoc(collection(db, ref.path, 'exercises'), { title: 'Primo Esercizio', duration: 10, comment: '', order: 0, createdAt: serverTimestamp() });
                         return;
                     }
 
@@ -721,6 +717,16 @@
                     return;
                 }
                 
+                // Se abbiamo già un token valido, procedi
+                if (gapi.client.getToken() !== null) {
+                     if (isAuto) {
+                         createCalendarEvent(preferredCalendarId, eventDetailsToSave);
+                     } else {
+                         listUserCalendars();
+                     }
+                     return;
+                }
+                
                 tokenClient.requestAccessToken({ prompt: '' });
             };
 
@@ -731,7 +737,8 @@
                     showCalendarSelectModal(calendars, eventDetailsToSave);
                 } catch (err) {
                     console.error("Errore lista calendari:", err);
-                    renderSaveErrorUI("Errore lista calendari. Verifica permessi.", () => listUserCalendars(), resetTimerUI);
+                    // Token probabilmente scaduto, prova a richiederlo
+                    tokenClient.requestAccessToken({ prompt: '' });
                 }
             };
             
