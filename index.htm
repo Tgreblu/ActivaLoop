@@ -28,7 +28,7 @@
     <div id="main-wrapper" class="w-full max-w-[600px] space-y-4">
         
         <div id="loading-overlay">
-            <p id="loading-text" class="text-gray-600">Avvio applicazione...</p>
+            <p id="loading-text" class="text-gray-600">Sincronizzazione dati...</p>
         </div>
         
         <!-- Blocco Superiore: Timer -->
@@ -93,7 +93,9 @@
         let tokenClient;
         let eventDetailsToSave = null;
         let preferredCalendarId = 'primary';
-        let gapiInited = false;
+        // FIX 1: Variabili coerenti
+        let gapiReady = false;
+        let gisReady = false;
 
         // Funzione per formattare la data in ISO locale
         const toLocalISOString = (date) => {
@@ -133,14 +135,13 @@
                     apiKey: GOOGLE_CALENDAR_API_KEY,
                     discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest"],
                 });
-                gapiInited = true;
+                gapiReady = true;
                 
                 await loadScript('https://accounts.google.com/gsi/client');
                 tokenClient = google.accounts.oauth2.initTokenClient({
                     client_id: GOOGLE_CLIENT_ID,
-                    scope: 'https://www.googleapis.com/auth/calendar.events',
+                    scope: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly',
                     callback: (tokenResponse) => {
-                        // Se c'è un errore nella risposta del token (es. popup chiuso o errore origine)
                         if (tokenResponse.error) {
                             alert("Errore Autorizzazione Google: " + tokenResponse.error);
                             resetTimerUI();
@@ -148,10 +149,9 @@
                         }
 
                         if (tokenResponse && tokenResponse.access_token) {
-                            // Imposta token su GAPI
-                            gapi.client.setToken(tokenResponse);
+                            // FIX 2: Imposta il token nel formato corretto
+                            gapi.client.setToken({ access_token: tokenResponse.access_token });
                             
-                            // Procedi col salvataggio
                             if (eventDetailsToSave) {
                                 if (eventDetailsToSave.isAuto && preferredCalendarId) {
                                     createCalendarEvent(preferredCalendarId, eventDetailsToSave);
@@ -162,10 +162,12 @@
                         }
                     },
                 });
+                gisReady = true;
                 console.log("Google APIs initialized");
             } catch (error) {
                 console.error("Errore critico inizializzazione Google:", error);
-                // Non blocchiamo l'app, ma logghiamo l'errore
+                loadingOverlay.style.opacity = '0';
+                loadingOverlay.style.pointerEvents = 'none';
             }
         };
 
@@ -455,18 +457,7 @@
                     }));
 
                     if(newSequences.length > 0 && !newSequences.some(s => s.isActive)) {
-                        const batch = writeBatch(db);
-                        batch.update(doc(db, `users/${userId}/sequences/${newSequences[0].id}`), { isActive: true });
-                        await batch.commit();
-                        return;
-                    }
-                    if(newSequences.length === 0 && userId) {
-                         const newSequence = {
-                            title: "Sequenza Base", isActive: true, createdAt: serverTimestamp(),
-                            settings: { speechEnabled: true, commentSpeechEnabled: true, breakDuration: 5, autoCalendarSave: false }
-                        };
-                        const ref = await addDoc(collection(db, `users/${userId}/sequences`), newSequence);
-                        await addDoc(collection(db, ref.path, 'exercises'), { title: 'Primo Esercizio', duration: 10, comment: '', order: 0, createdAt: serverTimestamp() });
+                        await handleActivateSequence(newSequences[0].id);
                         return;
                     }
 
@@ -524,7 +515,6 @@
                 exerciseUnsubscribers.set(sequenceId, unsubscribe);
             };
 
-            // RENDER UI FUNCTIONS (same logic)
             const renderSequencesUI = () => {
                 sequencesContainer.innerHTML = '';
                 allSequences.forEach(seq => {
@@ -656,7 +646,7 @@
                 });
                 await batch.commit();
              };
-            // ... (Confirmation Modal Logic)
+
             const showConfirmationModal = (message, onConfirm, isAlert = false) => {
                 const modal = document.createElement('div');
                 modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
@@ -741,12 +731,12 @@
             const handleCalendarSaveRequest = (startTime, endTime, title, isAuto) => {
                 eventDetailsToSave = { startTime, endTime, title, isAuto };
                 
-                if (!gapiReady) {
+                if (!gisReady || !gapiReady) {
                     renderSaveErrorUI("API Google non pronte.", () => handleCalendarSaveRequest(startTime, endTime, title, isAuto), resetTimerUI);
                     return;
                 }
                 
-                // Se abbiamo un token valido, procedi
+                // Se abbiamo già un token valido, procedi
                 if (gapi.client.getToken() !== null) {
                      if (isAuto && preferredCalendarId) {
                          createCalendarEvent(preferredCalendarId, eventDetailsToSave);
@@ -756,8 +746,8 @@
                      return;
                 }
                 
-                // Richiedi token se non presente
-                tokenClient.requestAccessToken({ prompt: '' });
+                // FIX 3: usa prompt: 'consent' quando non abbiamo un token
+                tokenClient.requestAccessToken({ prompt: 'consent' });
             };
 
             const listUserCalendars = async () => {
@@ -767,12 +757,7 @@
                     showCalendarSelectModal(calendars, eventDetailsToSave);
                 } catch (err) {
                     console.error("Errore lista calendari:", err);
-                     // Se errore 401/403, probabilmente il token è scaduto
-                     if (err.status === 401 || err.status === 403) {
-                         tokenClient.requestAccessToken({ prompt: '' });
-                     } else {
-                        renderSaveErrorUI("Errore lista calendari.", () => listUserCalendars(), resetTimerUI);
-                     }
+                    renderSaveErrorUI("Errore lista calendari.", () => listUserCalendars(), resetTimerUI);
                 }
             };
             
@@ -821,14 +806,13 @@
                      console.error("Errore nel creare l'evento:", err);
                      if (err.status === 401) {
                          // Token scaduto mentre provavamo a salvare
-                         tokenClient.requestAccessToken({ prompt: '' });
+                         tokenClient.requestAccessToken({ prompt: 'consent' }); // FIX 3
                      } else {
                         renderSaveErrorUI("Errore salvataggio.", () => createCalendarEvent(calendarId, {startTime, endTime, title}), resetTimerUI);
                      }
                 }
             };
 
-            // ... (Initialization)
             onAuthStateChanged(auth, (user) => {
                 if (user) {
                     userId = user.uid;
