@@ -94,7 +94,7 @@
         let gisReady = false;
         let preferredCalendarId = 'primary'; // Default
 
-        // --- CARICAMENTO DINAMICO API GOOGLE ---
+        // --- CARICAMENTO DINAMICO API GOOGLE (SENZA CONFLITTI) ---
         const loadScript = (src) => {
             return new Promise((resolve, reject) => {
                 const script = document.createElement('script');
@@ -379,10 +379,85 @@
                 }
             };
             
-            const migrateOldData = async () => { /* ... */ }; // Codice migrazione esistente (già eseguito)
+            const migrateOldData = async () => {
+                const oldExercisesSnap = await getDocs(collection(db, `users/${userId}/exercises`));
+                const oldSettingsSnap = await getDocs(collection(db, `users/${userId}/settings`));
+                let oldSettings = {};
+                if(!oldSettingsSnap.empty) oldSettings = oldSettingsSnap.docs[0].data();
+
+                const newSequenceRef = doc(collection(db, `users/${userId}/sequences`));
+                const batch = writeBatch(db);
+
+                batch.set(newSequenceRef, {
+                    title: oldSettings.sequenceTitle || "Sequenza Migrata",
+                    isActive: true,
+                    createdAt: serverTimestamp(),
+                    settings: {
+                        speechEnabled: typeof oldSettings.speechEnabled === 'boolean' ? oldSettings.speechEnabled : true,
+                        commentSpeechEnabled: typeof oldSettings.commentSpeechEnabled ==='boolean' ? oldSettings.commentSpeechEnabled : true,
+                        breakDuration: typeof oldSettings.breakDuration === 'number' ? oldSettings.breakDuration : 5,
+                        autoCalendarSave: false
+                    }
+                });
+
+                oldExercisesSnap.docs.forEach(oldDoc => {
+                    const newExerciseRef = doc(collection(db, newSequenceRef.path, 'exercises'));
+                    batch.set(newExerciseRef, oldDoc.data());
+                    batch.delete(oldDoc.ref);
+                });
+                 oldSettingsSnap.docs.forEach(doc => batch.delete(doc.ref));
+
+                await batch.commit();
+            };
             
-            const setupSequencesListener = () => { /* ... */ }; // Setup listener sequenze esistente
-            
+            const setupSequencesListener = () => {
+                if(unsubscribeFromSequences) unsubscribeFromSequences();
+                const sequencesRef = collection(db, `users/${userId}/sequences`);
+
+                unsubscribeFromSequences = onSnapshot(query(sequencesRef, orderBy("createdAt")), async (snapshot) => {
+                    if(snapshot.empty) {
+                        const oldExercisesExist = !(await getDocs(collection(db, `users/${userId}/exercises`))).empty;
+                        if(oldExercisesExist){
+                            loadingText.textContent = "Migrazione dati in corso...";
+                            await migrateOldData();
+                            return;
+                        }
+                    }
+                    
+                    const newSequences = snapshot.docs.map(doc => ({ 
+                        id: doc.id, 
+                        ...doc.data(), 
+                        exercises: allSequences.find(s => s.id === doc.id)?.exercises || [], 
+                        isEditingTitle: false 
+                    }));
+
+                    if(newSequences.length > 0 && !newSequences.some(s => s.isActive)) {
+                        await handleActivateSequence(newSequences[0].id);
+                        return;
+                    }
+                    // Primo avvio assoluto
+                    if(newSequences.length === 0) {
+                         const newSequence = {
+                            title: "Sequenza Base", isActive: true, createdAt: serverTimestamp(),
+                            settings: { speechEnabled: true, commentSpeechEnabled: true, breakDuration: 5, autoCalendarSave: false }
+                        };
+                        const ref = await addDoc(collection(db, `users/${userId}/sequences`), newSequence);
+                        await addDoc(collection(db, ref.path, 'exercises'), { title: 'Primo Esercizio', duration: 10, comment: '', order: 0, createdAt: serverTimestamp() });
+                        return;
+                    }
+
+                    allSequences = newSequences;
+                    renderSequencesUI();
+                    
+                    exerciseUnsubscribers.forEach(unsub => unsub());
+                    exerciseUnsubscribers.clear();
+                    allSequences.forEach(seq => setupExercisesListener(seq.id));
+
+                    loadingOverlay.style.opacity = '0';
+                    loadingOverlay.style.pointerEvents = 'none';
+                });
+            };
+
             const setupGlobalSettingsListener = () => {
                 if (unsubscribeFromGlobalSettings) unsubscribeFromGlobalSettings();
                 const settingsRef = doc(db, `users/${userId}/settings/main`);
@@ -399,7 +474,31 @@
                 await setDoc(settingsRef, { [key]: value }, { merge: true });
             };
 
-            const setupExercisesListener = (sequenceId) => { /* ... */ }; // Setup listener esercizi esistente
+            const setupExercisesListener = (sequenceId) => {
+                const exercisesRef = collection(db, `users/${userId}/sequences/${sequenceId}/exercises`);
+                const unsubscribe = onSnapshot(query(exercisesRef, orderBy("order")), (snapshot) => {
+                    const sequence = allSequences.find(s => s.id === sequenceId);
+                    if (!sequence) return;
+
+                    sequence.exercises = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    
+                    const activeSequence = getActiveSequence();
+                    if(activeSequence && activeSequence.id === sequenceId && isPaused){
+                        setupExercise(currentExerciseIndex, false);
+                    }
+                    
+                    const totalDurationEl = document.querySelector(`details[data-sequence-id="${sequenceId}"] .total-duration`);
+                    if(totalDurationEl){
+                        const exerciseDuration = sequence.exercises.reduce((sum, ex) => sum + (ex.duration || 0), 0);
+                        const breakDurationTotal = (sequence.exercises.length > 1) ? (sequence.exercises.length - 1) * sequence.settings.breakDuration : 0;
+                        totalDurationEl.textContent = `(${formatTime(exerciseDuration + breakDurationTotal)})`;
+                    }
+
+                    const exerciseListEl = document.querySelector(`details[data-sequence-id="${sequenceId}"] .exercise-list`);
+                    if(exerciseListEl) renderExerciseList(exerciseListEl, sequence.exercises);
+                });
+                exerciseUnsubscribers.set(sequenceId, unsubscribe);
+            };
 
             const renderSequencesUI = () => {
                 sequencesContainer.innerHTML = '';
@@ -468,12 +567,120 @@
                 });
             };
 
-            const renderExerciseList = (container, exercises) => { /* ... */ }; // Codice render esercizi esistente
-            const updateSetting = async (sequenceId, settingKey, value) => { /* ... */ }; // Codice update setting esistente
-            const handleAddSequence = async () => { /* ... */ }; // Codice add sequence esistente
-            const handleActivateSequence = async (sequenceIdToActivate) => { /* ... */ }; // Codice activate sequence esistente
-            const showConfirmationModal = (message, onConfirm, isAlert = false) => { /* ... */ }; // Codice modal esistente
-            const handleDeleteSequence = async (sequenceId) => { /* ... */ }; // Codice delete sequence esistente
+            const renderExerciseList = (container, exercises) => {
+                container.innerHTML = '';
+                exercises.forEach((exercise, index) => {
+                    const row = document.createElement('div');
+                    row.className = 'flex items-start space-x-1 mb-2';
+                    row.dataset.exerciseId = exercise.id;
+                    row.innerHTML = `
+                        <div class="flex-grow">
+                            <input type="text" value="${exercise.title}" placeholder="Titolo Esercizio" data-field="title" class="w-full p-1 border rounded-md text-sm">
+                            <textarea placeholder="Aggiungi un commento..." data-field="comment" class="w-full mt-1 p-1 border rounded-md text-xs h-10 resize-none">${exercise.comment || ''}</textarea>
+                        </div>
+                        <div class="flex-shrink-0 flex flex-col items-center space-y-1 pt-1">
+                            <input type="number" value="${exercise.duration}" data-field="duration" class="w-16 p-1 border rounded-md text-sm text-center">
+                            <div class="flex items-center">
+                                <button data-direction="up" class="move-btn p-1 text-gray-500 hover:bg-gray-200 rounded-full" ${index === 0 ? 'style="visibility: hidden;"' : ''}>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+                                </button>
+                                <button data-direction="down" class="move-btn p-1 text-gray-500 hover:bg-gray-200 rounded-full" ${index === exercises.length - 1 ? 'style="visibility: hidden;"' : ''}>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                                </button>
+                                <button class="delete-btn p-1 text-red-500 hover:bg-red-100 rounded-full">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    container.appendChild(row);
+                });
+            };
+
+            const updateSetting = async (sequenceId, settingKey, value) => {
+                if (!userId) return;
+                const settingsDocRef = doc(db, `users/${userId}/sequences/${sequenceId}`);
+                await updateDoc(settingsDocRef, { [`settings.${settingKey}`]: value });
+            };
+
+            const handleAddSequence = async () => {
+                const newSequence = {
+                    title: `Nuova Sequenza ${allSequences.length + 1}`,
+                    isActive: allSequences.length === 0,
+                    createdAt: serverTimestamp(),
+                    settings: {
+                        speechEnabled: true,
+                        commentSpeechEnabled: true,
+                        breakDuration: 5,
+                        autoCalendarSave: false
+                    }
+                };
+                const sequencesRef = collection(db, `users/${userId}/sequences`);
+                const newDocRef = await addDoc(sequencesRef, newSequence);
+                
+                await addDoc(collection(db, newDocRef.path, 'exercises'), {
+                     title: 'Primo Esercizio', duration: 10, comment: '', order: 0, createdAt: serverTimestamp() 
+                });
+            };
+
+             const handleActivateSequence = async (sequenceIdToActivate) => {
+                const batch = writeBatch(db);
+                allSequences.forEach(seq => {
+                    const docRef = doc(db, `users/${userId}/sequences/${seq.id}`);
+                    batch.update(docRef, { isActive: seq.id === sequenceIdToActivate });
+                });
+                await batch.commit();
+             };
+
+            const showConfirmationModal = (message, onConfirm, isAlert = false) => {
+                const modal = document.createElement('div');
+                modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+                
+                const buttonsHTML = isAlert 
+                    ? `<button id="modal-ok" class="px-4 py-2 rounded-md text-white bg-blue-600 hover:bg-blue-700">OK</button>`
+                    : `<button id="modal-cancel" class="px-4 py-2 rounded-md text-gray-700 bg-gray-200 hover:bg-gray-300">Annulla</button>
+                       <button id="modal-confirm" class="px-4 py-2 rounded-md text-white bg-red-600 hover:bg-red-700">Conferma</button>`;
+
+                modal.innerHTML = `
+                    <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
+                        <p class="text-gray-800 mb-4">${message}</p>
+                        <div class="flex justify-end space-x-2">
+                           ${buttonsHTML}
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+
+                const closeModal = () => document.body.removeChild(modal);
+                
+                if (isAlert) {
+                    document.getElementById('modal-ok').addEventListener('click', closeModal);
+                } else {
+                    document.getElementById('modal-confirm').addEventListener('click', () => {
+                        onConfirm();
+                        closeModal();
+                    });
+                    document.getElementById('modal-cancel').addEventListener('click', closeModal);
+                }
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) closeModal();
+                });
+            };
+
+            const handleDeleteSequence = async (sequenceId) => {
+                if (!userId) return;
+                const exercisesRef = collection(db, `users/${userId}/sequences/${sequenceId}/exercises`);
+                const exercisesSnapshot = await getDocs(exercisesRef);
+
+                const batch = writeBatch(db);
+                
+                exercisesSnapshot.docs.forEach(doc => batch.delete(doc.ref));
+
+                const sequenceRef = doc(db, `users/${userId}/sequences/${sequenceId}`);
+                batch.delete(sequenceRef);
+
+                await batch.commit();
+            };
 
             const handleSequenceCompletion = (sequence) => {
                  titleEl.textContent = 'Completato!';
@@ -492,7 +699,6 @@
                  }
             };
 
-            // Funzione di gestione errori salvataggio
             const renderSaveErrorUI = (errorMessage, retryCallback, skipCallback) => {
                  countdownContainer.innerHTML = `
                     <div class="flex flex-col items-center">
@@ -515,7 +721,6 @@
                     return;
                 }
                 
-                // Richiedi token se non presente o scaduto
                 tokenClient.requestAccessToken({ prompt: '' });
             };
 
@@ -531,9 +736,6 @@
             };
             
             const showCalendarSelectModal = (calendars, eventDetails) => {
-                // UI Modal esistente...
-                // ...
-                // Nel catch dell'inserimento evento o nel confirm del modal, chiamare createCalendarEvent
                 const modal = document.createElement('div');
                 modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
                 let options = calendars.map(cal => `<option value="${cal.id}">${cal.summary}</option>`).join('');
@@ -595,13 +797,115 @@
                     signInAnonymously(auth).catch(error => console.error("Anonymous sign-in error:", error));
                 }
             });
-            // ... (rest of listeners)
+
             startPauseBtn.addEventListener('click', handleStartPauseClick);
             nextBtn.addEventListener('click', handleNextClick);
             backBtn.addEventListener('click', handleBackClick);
             addSequenceBtn.addEventListener('click', handleAddSequence);
-            sequencesContainer.addEventListener('click', async (e) => { /* ... existing logic ... */ });
-            sequencesContainer.addEventListener('change', async (e) => { /* ... existing logic ... */ });
+
+            sequencesContainer.addEventListener('click', async (e) => {
+                const detailsEl = e.target.closest('details');
+                if (!detailsEl) return;
+                const sequenceId = detailsEl.dataset.sequenceId;
+                const sequence = allSequences.find(s => s.id === sequenceId);
+                if(!sequence) return;
+
+                if (e.target.classList.contains('activate-toggle')) {
+                    await handleActivateSequence(sequenceId);
+                }
+
+                if (e.target.closest('.delete-sequence-btn')) {
+                    showConfirmationModal(
+                        `Sei sicuro di voler cancellare la sequenza "${sequence.title}"? L'azione è irreversibile.`,
+                        () => handleDeleteSequence(sequenceId)
+                    );
+                    return;
+                }
+
+                const editBtn = e.target.closest('.edit-title-btn');
+                if (editBtn) {
+                     e.preventDefault(); e.stopPropagation();
+                     const titleContainer = detailsEl.querySelector('.sequence-title-container');
+                     if(sequence.isEditingTitle){
+                        const input = titleContainer.querySelector('input');
+                        const newTitle = input.value.trim();
+                        if(newTitle) await updateDoc(doc(db, `users/${userId}/sequences/${sequenceId}`), { title: newTitle });
+                        sequence.isEditingTitle = false;
+                        titleContainer.innerHTML = `<span class="sequence-title truncate">${newTitle || sequence.title}</span>`;
+                        editBtn.innerHTML = pencilIcon;
+                     } else {
+                        allSequences.forEach(s => s.isEditingTitle = false);
+                        renderSequencesUI();
+                        const newDetailsEl = sequencesContainer.querySelector(`details[data-sequence-id="${sequenceId}"]`);
+                        const newTitleContainer = newDetailsEl.querySelector('.sequence-title-container');
+                        const newEditBtn = newDetailsEl.querySelector('.edit-title-btn');
+
+                        sequence.isEditingTitle = true;
+                        newTitleContainer.innerHTML = `<input type="text" class="text-sm font-medium bg-white border rounded px-1 -my-1 w-full" value="${sequence.title}">`;
+                        newEditBtn.innerHTML = checkIcon;
+                        newTitleContainer.querySelector('input').focus();
+                     }
+                }
+
+                if (e.target.closest('.add-exercise-btn')) {
+                    const newExercise = { title: 'Nuovo Esercizio', duration: 10, comment: '', order: sequence.exercises.length, createdAt: serverTimestamp() };
+                    await addDoc(collection(db, `users/${userId}/sequences/${sequenceId}/exercises`), newExercise);
+                }
+                
+                const exerciseRow = e.target.closest('div[data-exercise-id]');
+                if(!exerciseRow) return;
+                const exerciseId = exerciseRow.dataset.exerciseId;
+                
+                 if (e.target.closest('.delete-btn')) {
+                    await deleteDoc(doc(db, `users/${userId}/sequences/${sequenceId}/exercises/${exerciseId}`));
+                }
+
+                const moveBtn = e.target.closest('.move-btn');
+                if (moveBtn) {
+                    const direction = moveBtn.dataset.direction;
+                    const currentIndex = sequence.exercises.findIndex(ex => ex.id === exerciseId);
+                    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+                    if(targetIndex >= 0 && targetIndex < sequence.exercises.length) {
+                        const batch = writeBatch(db);
+                        const currentExRef = doc(db, `users/${userId}/sequences/${sequenceId}/exercises/${exerciseId}`);
+                        const targetExRef = doc(db, `users/${userId}/sequences/${sequenceId}/exercises/${sequence.exercises[targetIndex].id}`);
+                        batch.update(currentExRef, { order: sequence.exercises[targetIndex].order });
+                        batch.update(targetExRef, { order: sequence.exercises[currentIndex].order });
+                        await batch.commit();
+                    }
+                }
+            });
+
+            sequencesContainer.addEventListener('change', async (e) => {
+                const detailsEl = e.target.closest('details');
+                if (!detailsEl) return;
+                const sequenceId = detailsEl.dataset.sequenceId;
+                
+                if (e.target.classList.contains('setting-toggle')) {
+                    const settingKey = e.target.dataset.setting;
+                    const value = e.target.checked;
+                    await updateSetting(sequenceId, settingKey, value);
+                }
+                 if (e.target.classList.contains('setting-input')) {
+                    const settingKey = e.target.dataset.setting;
+                    let value = parseInt(e.target.value, 10);
+                     if(settingKey === 'breakDuration'){
+                         if (isNaN(value)) value = 5;
+                         if (value < 5) value = 5;
+                         if (value > 120) value = 120;
+                         e.target.value = value;
+                     }
+                    await updateSetting(sequenceId, settingKey, value);
+                 }
+
+                const exerciseRow = e.target.closest('div[data-exercise-id]');
+                if(exerciseRow){
+                    const exerciseId = exerciseRow.dataset.exerciseId;
+                    const field = e.target.dataset.field;
+                    const value = e.target.type === 'number' ? parseInt(e.target.value) || 0 : e.target.value;
+                    await updateDoc(doc(db, `users/${userId}/sequences/${sequenceId}/exercises/${exerciseId}`), { [field]: value });
+                }
+            });
             
             const handleVisibilityChange = async () => {
                 if (wakeLock !== null && document.visibilityState === 'visible') {
@@ -617,4 +921,3 @@
     </script>
 </body>
 </html>
-
