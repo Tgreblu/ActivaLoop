@@ -68,11 +68,10 @@
         import { getFirestore, collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp, writeBatch, setDoc, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
         // --- CONFIGURAZIONE GOOGLE ---
-        const GOOGLE_CLIENT_ID = "5835049539-efmqgkk3fmuesj0v0u6nlkf2duv6urbq.apps.googleusercontent.com"; 
+        const GOOGLE_CLIENT_ID = "5835049539-efmqgkk3fmuesj0v0u6nlkf2duv6urbq.apps.googleusercontent.com";
         const GOOGLE_CALENDAR_API_KEY = "AIzaSyAKLweJOXcYAeFNiNQE1QwW4D2SQ4XPSbQ";
 
         const firebaseConfig = {
-            // INSERISCI QUI IL TUO OGGETTO FIREBASE CONFIG
             apiKey: "AIzaSyAoSqwkSoatQLABaTL17EnU4pA40kcWonY",
             authDomain: "activaloop.firebaseapp.com",
             projectId: "activaloop",
@@ -94,8 +93,10 @@
         let tokenClient;
         let eventDetailsToSave = null;
         let preferredCalendarId = 'primary';
-        let gapiInited = false;
-        let gisInited = false;
+        
+        // FIX: Definiamo queste variabili a livello di modulo per renderle accessibili ovunque
+        let gapiReady = false;
+        let gisReady = false;
 
         // Funzione per formattare la data in ISO locale
         const toLocalISOString = (date) => {
@@ -114,6 +115,7 @@
                 ':' + pad(Math.abs(tzo) % 60);
         };
 
+        // --- CARICAMENTO DINAMICO API GOOGLE ---
         const loadScript = (src) => {
             return new Promise((resolve, reject) => {
                 if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
@@ -138,10 +140,9 @@
                         apiKey: GOOGLE_CALENDAR_API_KEY,
                         discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest"],
                     });
-                    gapiInited = true;
+                    gapiReady = true; // FIX: Imposta gapiReady su true
                 } catch (gapiError) {
                     console.error("Errore GAPI Init:", gapiError);
-                    // Continua anche se GAPI fallisce, mostreremo errore al momento del salvataggio
                 }
 
                 // 2. Carica GIS
@@ -163,8 +164,8 @@
                         }
                     },
                 });
-                gisInited = true;
-                console.log("Google APIs initialized");
+                gisReady = true; // FIX: Imposta gisReady su true
+                console.log("Google APIs initialized (GIS + GAPI)");
             } catch (error) {
                 console.error("Errore inizializzazione Google APIs:", error);
                 const loadingOverlay = document.getElementById('loading-overlay');
@@ -242,20 +243,17 @@
             const signInWithGoogle = async () => {
                 const provider = new GoogleAuthProvider();
                 try {
-                    // FIX: Gestione corretta dell'errore "credential-already-in-use"
+                    // Se anonimo, collega. Altrimenti login normale.
                     if (auth.currentUser && auth.currentUser.isAnonymous) {
                          try {
                             await linkWithPopup(auth.currentUser, provider);
                          } catch (linkError) {
                              if (linkError.code === 'auth/credential-already-in-use') {
-                                 // L'account esiste già, facciamo un login normale (switch user)
-                                 // Nota: i dati anonimi verranno persi, o bisognerebbe migrarli manualmente.
-                                 // Per semplicità qui facciamo il login.
+                                 // L'account esiste già, facciamo un login normale
                                  const credential = GoogleAuthProvider.credentialFromError(linkError);
                                  if (credential) {
                                      await signInWithCredential(auth, credential);
                                  } else {
-                                     // Fallback: riprova login diretto
                                      await signInWithPopup(auth, provider);
                                  }
                              } else {
@@ -425,7 +423,37 @@
                 }
             };
             
-            const migrateOldData = async () => { /* ... */ }; // (omissis per brevità, stesso codice)
+            const migrateOldData = async () => {
+                const oldExercisesSnap = await getDocs(collection(db, `users/${userId}/exercises`));
+                const oldSettingsSnap = await getDocs(collection(db, `users/${userId}/settings`));
+                let oldSettings = {};
+                if(!oldSettingsSnap.empty) oldSettings = oldSettingsSnap.docs[0].data();
+
+                const newSequenceRef = doc(collection(db, `users/${userId}/sequences`));
+                const batch = writeBatch(db);
+
+                batch.set(newSequenceRef, {
+                    title: oldSettings.sequenceTitle || "Sequenza Migrata",
+                    isActive: true,
+                    createdAt: serverTimestamp(),
+                    settings: {
+                        speechEnabled: typeof oldSettings.speechEnabled === 'boolean' ? oldSettings.speechEnabled : true,
+                        commentSpeechEnabled: typeof oldSettings.commentSpeechEnabled ==='boolean' ? oldSettings.commentSpeechEnabled : true,
+                        breakDuration: typeof oldSettings.breakDuration === 'number' ? oldSettings.breakDuration : 5,
+                        autoCalendarSave: false
+                    }
+                });
+
+                oldExercisesSnap.docs.forEach(oldDoc => {
+                    const newExerciseRef = doc(collection(db, newSequenceRef.path, 'exercises'));
+                    batch.set(newExerciseRef, oldDoc.data());
+                    batch.delete(oldDoc.ref);
+                });
+                 oldSettingsSnap.docs.forEach(doc => batch.delete(doc.ref));
+
+                await batch.commit();
+            };
+            
             const setupSequencesListener = () => {
                 if(unsubscribeFromSequences) unsubscribeFromSequences();
                 const sequencesRef = collection(db, `users/${userId}/sequences`);
@@ -448,18 +476,7 @@
                     }));
 
                     if(newSequences.length > 0 && !newSequences.some(s => s.isActive)) {
-                         const batch = writeBatch(db);
-                         batch.update(doc(db, `users/${userId}/sequences/${newSequences[0].id}`), { isActive: true });
-                         await batch.commit();
-                        return;
-                    }
-                    if(newSequences.length === 0 && userId) {
-                         const newSequence = {
-                            title: "Sequenza Base", isActive: true, createdAt: serverTimestamp(),
-                            settings: { speechEnabled: true, commentSpeechEnabled: true, breakDuration: 5, autoCalendarSave: false }
-                        };
-                        const ref = await addDoc(collection(db, `users/${userId}/sequences`), newSequence);
-                        await addDoc(collection(db, ref.path, 'exercises'), { title: 'Primo Esercizio', duration: 10, comment: '', order: 0, createdAt: serverTimestamp() });
+                        await handleActivateSequence(newSequences[0].id);
                         return;
                     }
 
@@ -517,7 +534,6 @@
                 exerciseUnsubscribers.set(sequenceId, unsubscribe);
             };
 
-            // RENDER UI FUNCTIONS (same logic)
             const renderSequencesUI = () => {
                 sequencesContainer.innerHTML = '';
                 allSequences.forEach(seq => {
@@ -720,7 +736,7 @@
             const renderSaveErrorUI = (errorMessage, retryCallback, skipCallback) => {
                  countdownContainer.innerHTML = `
                     <div class="flex flex-col items-center">
-                        <p class="text-red-600 font-bold mb-2 text-sm">${errorMessage}</p>
+                        <p class="text-red-600 font-bold mb-2 text-sm text-center">${errorMessage}</p>
                         <div class="flex space-x-2">
                             <button id="retry-save-btn" class="bg-blue-600 text-white px-4 py-2 rounded shadow text-sm">Riprova</button>
                             <button id="skip-save-btn" class="bg-gray-300 text-gray-700 px-4 py-2 rounded shadow text-sm">Salta</button>
@@ -734,7 +750,8 @@
             const handleCalendarSaveRequest = (startTime, endTime, title, isAuto) => {
                 eventDetailsToSave = { startTime, endTime, title, isAuto };
                 
-                if (!gisReady || !gapiReady) {
+                // FIX: Verifica variabili di stato corrette
+                if (!gisInited || !gapiInited) {
                     renderSaveErrorUI("API Google non pronte.", () => handleCalendarSaveRequest(startTime, endTime, title, isAuto), resetTimerUI);
                     return;
                 }
