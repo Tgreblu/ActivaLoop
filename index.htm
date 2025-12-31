@@ -28,7 +28,7 @@
     <div id="main-wrapper" class="w-full max-w-[600px] space-y-4">
         
         <div id="loading-overlay">
-            <p id="loading-text" class="text-gray-600">Sincronizzazione dati...</p>
+            <p id="loading-text" class="text-gray-600">Avvio applicazione...</p>
         </div>
         
         <!-- Blocco Superiore: Timer -->
@@ -69,6 +69,7 @@
 
         // --- CONFIGURAZIONE GOOGLE ---
         const GOOGLE_CLIENT_ID = "5835049539-efmqgkk3fmuesj0v0u6nlkf2duv6urbq.apps.googleusercontent.com";
+        const GOOGLE_CALENDAR_API_KEY = "AIzaSyAKLweJOXcYAeFNiNQE1QwW4D2SQ4XPSbQ";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAoSqwkSoatQLABaTL17EnU4pA40kcWonY",
@@ -93,9 +94,8 @@
         let eventDetailsToSave = null;
         let preferredCalendarId = 'primary';
         let gapiInited = false;
-        let gisInited = false;
 
-        // Funzione per formattare la data in ISO locale (per timezone Italia/Europa)
+        // Funzione per formattare la data in ISO locale
         const toLocalISOString = (date) => {
             const tzo = -date.getTimezoneOffset(),
                 dif = tzo >= 0 ? '+' : '-',
@@ -112,13 +112,9 @@
                 ':' + pad(Math.abs(tzo) % 60);
         };
 
-        // --- CARICAMENTO DINAMICO API GOOGLE ---
         const loadScript = (src) => {
             return new Promise((resolve, reject) => {
-                if (document.querySelector(`script[src="${src}"]`)) {
-                    resolve();
-                    return;
-                }
+                if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
                 const script = document.createElement('script');
                 script.src = src;
                 script.async = true;
@@ -131,27 +127,31 @@
 
         const initializeGoogleApis = async () => {
             try {
-                // 1. Carica GAPI (per fare le chiamate API)
                 await loadScript('https://apis.google.com/js/api.js');
                 await new Promise((resolve) => gapi.load('client', resolve));
                 await gapi.client.init({
-                    apiKey: firebaseConfig.apiKey, // Usa la API key di Firebase per l'init di base
+                    apiKey: GOOGLE_CALENDAR_API_KEY,
                     discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest"],
                 });
                 gapiInited = true;
-
-                // 2. Carica GIS (per gestire l'autenticazione/token separatamente)
+                
                 await loadScript('https://accounts.google.com/gsi/client');
                 tokenClient = google.accounts.oauth2.initTokenClient({
                     client_id: GOOGLE_CLIENT_ID,
-                    scope: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly',
+                    scope: 'https://www.googleapis.com/auth/calendar.events',
                     callback: (tokenResponse) => {
-                        // Callback invocata quando l'utente completa il popup di consenso
+                        // Se c'è un errore nella risposta del token (es. popup chiuso o errore origine)
+                        if (tokenResponse.error) {
+                            alert("Errore Autorizzazione Google: " + tokenResponse.error);
+                            resetTimerUI();
+                            return;
+                        }
+
                         if (tokenResponse && tokenResponse.access_token) {
-                            // Impostiamo il token in GAPI manualmente (Fix consigliato)
+                            // Imposta token su GAPI
                             gapi.client.setToken(tokenResponse);
                             
-                            // Se c'era un salvataggio in sospeso, procediamo
+                            // Procedi col salvataggio
                             if (eventDetailsToSave) {
                                 if (eventDetailsToSave.isAuto && preferredCalendarId) {
                                     createCalendarEvent(preferredCalendarId, eventDetailsToSave);
@@ -162,10 +162,10 @@
                         }
                     },
                 });
-                gisInited = true;
-                console.log("Google APIs initialized (GIS + GAPI)");
+                console.log("Google APIs initialized");
             } catch (error) {
-                console.error("Errore inizializzazione Google APIs:", error);
+                console.error("Errore critico inizializzazione Google:", error);
+                // Non blocchiamo l'app, ma logghiamo l'errore
             }
         };
 
@@ -235,12 +235,10 @@
 
             const signInWithGoogle = async () => {
                 const provider = new GoogleAuthProvider();
-                // Nota: NON aggiungiamo scope qui per evitare conflitti con GIS.
-                // Firebase gestisce solo l'auth. Il calendario lo gestiamo con GIS.
                 try {
-                    // Controlla se siamo anonimi per fare il linking
+                    // Se anonimo, collega. Altrimenti login normale.
                     if (auth.currentUser && auth.currentUser.isAnonymous) {
-                        await linkWithPopup(auth.currentUser, provider); // FIX: Usa linkWithPopup
+                        await linkWithPopup(auth.currentUser, provider);
                     } else {
                         await signInWithPopup(auth, provider);
                     }
@@ -457,7 +455,18 @@
                     }));
 
                     if(newSequences.length > 0 && !newSequences.some(s => s.isActive)) {
-                        await handleActivateSequence(newSequences[0].id);
+                        const batch = writeBatch(db);
+                        batch.update(doc(db, `users/${userId}/sequences/${newSequences[0].id}`), { isActive: true });
+                        await batch.commit();
+                        return;
+                    }
+                    if(newSequences.length === 0 && userId) {
+                         const newSequence = {
+                            title: "Sequenza Base", isActive: true, createdAt: serverTimestamp(),
+                            settings: { speechEnabled: true, commentSpeechEnabled: true, breakDuration: 5, autoCalendarSave: false }
+                        };
+                        const ref = await addDoc(collection(db, `users/${userId}/sequences`), newSequence);
+                        await addDoc(collection(db, ref.path, 'exercises'), { title: 'Primo Esercizio', duration: 10, comment: '', order: 0, createdAt: serverTimestamp() });
                         return;
                     }
 
@@ -515,6 +524,7 @@
                 exerciseUnsubscribers.set(sequenceId, unsubscribe);
             };
 
+            // RENDER UI FUNCTIONS (same logic)
             const renderSequencesUI = () => {
                 sequencesContainer.innerHTML = '';
                 allSequences.forEach(seq => {
@@ -646,7 +656,7 @@
                 });
                 await batch.commit();
              };
-
+            // ... (Confirmation Modal Logic)
             const showConfirmationModal = (message, onConfirm, isAlert = false) => {
                 const modal = document.createElement('div');
                 modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
@@ -717,7 +727,7 @@
             const renderSaveErrorUI = (errorMessage, retryCallback, skipCallback) => {
                  countdownContainer.innerHTML = `
                     <div class="flex flex-col items-center">
-                        <p class="text-red-600 font-bold mb-2 text-sm text-center">${errorMessage}</p>
+                        <p class="text-red-600 font-bold mb-2 text-sm">${errorMessage}</p>
                         <div class="flex space-x-2">
                             <button id="retry-save-btn" class="bg-blue-600 text-white px-4 py-2 rounded shadow text-sm">Riprova</button>
                             <button id="skip-save-btn" class="bg-gray-300 text-gray-700 px-4 py-2 rounded shadow text-sm">Salta</button>
@@ -731,33 +741,23 @@
             const handleCalendarSaveRequest = (startTime, endTime, title, isAuto) => {
                 eventDetailsToSave = { startTime, endTime, title, isAuto };
                 
-                if (!gisInited || !gapiInited) {
+                if (!gapiReady) {
                     renderSaveErrorUI("API Google non pronte.", () => handleCalendarSaveRequest(startTime, endTime, title, isAuto), resetTimerUI);
                     return;
                 }
                 
-                // Se abbiamo già un token valido, procedi
+                // Se abbiamo un token valido, procedi
                 if (gapi.client.getToken() !== null) {
-                     if (isAuto) {
+                     if (isAuto && preferredCalendarId) {
                          createCalendarEvent(preferredCalendarId, eventDetailsToSave);
                      } else {
                          listUserCalendars();
                      }
                      return;
                 }
-                // Altrimenti, per il flusso automatico, mostra pulsante per riconnettere
-                if (isAuto) {
-                     countdownContainer.innerHTML = `
-                        <div class="flex flex-col items-center space-y-2">
-                             <p class="text-sm text-gray-600">Sessione Google scaduta per salvataggio auto</p>
-                             <button id="reauth-btn" class="text-lg font-semibold py-2 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-all duration-200 shadow-md">Autorizza e Salva</button>
-                             <button id="skip-save-btn" class="text-sm text-gray-500 hover:underline">Salta</button>
-                        </div>`;
-                     document.getElementById('reauth-btn').addEventListener('click', () => tokenClient.requestAccessToken({ prompt: '' }));
-                     document.getElementById('skip-save-btn').addEventListener('click', resetTimerUI);
-                } else {
-                    tokenClient.requestAccessToken({ prompt: '' });
-                }
+                
+                // Richiedi token se non presente
+                tokenClient.requestAccessToken({ prompt: '' });
             };
 
             const listUserCalendars = async () => {
@@ -767,7 +767,12 @@
                     showCalendarSelectModal(calendars, eventDetailsToSave);
                 } catch (err) {
                     console.error("Errore lista calendari:", err);
-                    renderSaveErrorUI("Errore lista calendari.", () => listUserCalendars(), resetTimerUI);
+                     // Se errore 401/403, probabilmente il token è scaduto
+                     if (err.status === 401 || err.status === 403) {
+                         tokenClient.requestAccessToken({ prompt: '' });
+                     } else {
+                        renderSaveErrorUI("Errore lista calendari.", () => listUserCalendars(), resetTimerUI);
+                     }
                 }
             };
             
@@ -814,15 +819,16 @@
                     setTimeout(resetTimerUI, 3000);
                 } catch (err) {
                      console.error("Errore nel creare l'evento:", err);
-                     // Se errore 401 (non autorizzato), prova a richiedere token
                      if (err.status === 401) {
-                        renderSaveErrorUI("Sessione scaduta.", () => tokenClient.requestAccessToken({ prompt: '' }), resetTimerUI);
+                         // Token scaduto mentre provavamo a salvare
+                         tokenClient.requestAccessToken({ prompt: '' });
                      } else {
                         renderSaveErrorUI("Errore salvataggio.", () => createCalendarEvent(calendarId, {startTime, endTime, title}), resetTimerUI);
                      }
                 }
             };
 
+            // ... (Initialization)
             onAuthStateChanged(auth, (user) => {
                 if (user) {
                     userId = user.uid;
@@ -834,13 +840,115 @@
                     signInAnonymously(auth).catch(error => console.error("Anonymous sign-in error:", error));
                 }
             });
-            // ... (rest of listeners)
+
             startPauseBtn.addEventListener('click', handleStartPauseClick);
             nextBtn.addEventListener('click', handleNextClick);
             backBtn.addEventListener('click', handleBackClick);
             addSequenceBtn.addEventListener('click', handleAddSequence);
-            sequencesContainer.addEventListener('click', async (e) => { /* ... existing logic ... */ });
-            sequencesContainer.addEventListener('change', async (e) => { /* ... existing logic ... */ });
+            
+            sequencesContainer.addEventListener('click', async (e) => {
+                const detailsEl = e.target.closest('details');
+                if (!detailsEl) return;
+                const sequenceId = detailsEl.dataset.sequenceId;
+                const sequence = allSequences.find(s => s.id === sequenceId);
+                if(!sequence) return;
+
+                if (e.target.classList.contains('activate-toggle')) {
+                    await handleActivateSequence(sequenceId);
+                }
+
+                if (e.target.closest('.delete-sequence-btn')) {
+                    showConfirmationModal(
+                        `Sei sicuro di voler cancellare la sequenza "${sequence.title}"? L'azione è irreversibile.`,
+                        () => handleDeleteSequence(sequenceId)
+                    );
+                    return;
+                }
+
+                const editBtn = e.target.closest('.edit-title-btn');
+                if (editBtn) {
+                     e.preventDefault(); e.stopPropagation();
+                     const titleContainer = detailsEl.querySelector('.sequence-title-container');
+                     if(sequence.isEditingTitle){
+                        const input = titleContainer.querySelector('input');
+                        const newTitle = input.value.trim();
+                        if(newTitle) await updateDoc(doc(db, `users/${userId}/sequences/${sequenceId}`), { title: newTitle });
+                        sequence.isEditingTitle = false;
+                        titleContainer.innerHTML = `<span class="sequence-title truncate">${newTitle || sequence.title}</span>`;
+                        editBtn.innerHTML = pencilIcon;
+                     } else {
+                        allSequences.forEach(s => s.isEditingTitle = false);
+                        renderSequencesUI();
+                        const newDetailsEl = sequencesContainer.querySelector(`details[data-sequence-id="${sequenceId}"]`);
+                        const newTitleContainer = newDetailsEl.querySelector('.sequence-title-container');
+                        const newEditBtn = newDetailsEl.querySelector('.edit-title-btn');
+
+                        sequence.isEditingTitle = true;
+                        newTitleContainer.innerHTML = `<input type="text" class="text-sm font-medium bg-white border rounded px-1 -my-1 w-full" value="${sequence.title}">`;
+                        newEditBtn.innerHTML = checkIcon;
+                        newTitleContainer.querySelector('input').focus();
+                     }
+                }
+
+                if (e.target.closest('.add-exercise-btn')) {
+                    const newExercise = { title: 'Nuovo Esercizio', duration: 10, comment: '', order: sequence.exercises.length, createdAt: serverTimestamp() };
+                    await addDoc(collection(db, `users/${userId}/sequences/${sequenceId}/exercises`), newExercise);
+                }
+                
+                const exerciseRow = e.target.closest('div[data-exercise-id]');
+                if(!exerciseRow) return;
+                const exerciseId = exerciseRow.dataset.exerciseId;
+                
+                 if (e.target.closest('.delete-btn')) {
+                    await deleteDoc(doc(db, `users/${userId}/sequences/${sequenceId}/exercises/${exerciseId}`));
+                }
+
+                const moveBtn = e.target.closest('.move-btn');
+                if (moveBtn) {
+                    const direction = moveBtn.dataset.direction;
+                    const currentIndex = sequence.exercises.findIndex(ex => ex.id === exerciseId);
+                    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+                    if(targetIndex >= 0 && targetIndex < sequence.exercises.length) {
+                        const batch = writeBatch(db);
+                        const currentExRef = doc(db, `users/${userId}/sequences/${sequenceId}/exercises/${exerciseId}`);
+                        const targetExRef = doc(db, `users/${userId}/sequences/${sequenceId}/exercises/${sequence.exercises[targetIndex].id}`);
+                        batch.update(currentExRef, { order: sequence.exercises[targetIndex].order });
+                        batch.update(targetExRef, { order: sequence.exercises[currentIndex].order });
+                        await batch.commit();
+                    }
+                }
+            });
+
+            sequencesContainer.addEventListener('change', async (e) => {
+                const detailsEl = e.target.closest('details');
+                if (!detailsEl) return;
+                const sequenceId = detailsEl.dataset.sequenceId;
+                
+                if (e.target.classList.contains('setting-toggle')) {
+                    const settingKey = e.target.dataset.setting;
+                    const value = e.target.checked;
+                    await updateSetting(sequenceId, settingKey, value);
+                }
+                 if (e.target.classList.contains('setting-input')) {
+                    const settingKey = e.target.dataset.setting;
+                    let value = parseInt(e.target.value, 10);
+                     if(settingKey === 'breakDuration'){
+                         if (isNaN(value)) value = 5;
+                         if (value < 5) value = 5;
+                         if (value > 120) value = 120;
+                         e.target.value = value;
+                     }
+                    await updateSetting(sequenceId, settingKey, value);
+                 }
+
+                const exerciseRow = e.target.closest('div[data-exercise-id]');
+                if(exerciseRow){
+                    const exerciseId = exerciseRow.dataset.exerciseId;
+                    const field = e.target.dataset.field;
+                    const value = e.target.type === 'number' ? parseInt(e.target.value) || 0 : e.target.value;
+                    await updateDoc(doc(db, `users/${userId}/sequences/${sequenceId}/exercises/${exerciseId}`), { [field]: value });
+                }
+            });
             
             const handleVisibilityChange = async () => {
                 if (wakeLock !== null && document.visibilityState === 'visible') {
@@ -856,4 +964,3 @@
     </script>
 </body>
 </html>
-
