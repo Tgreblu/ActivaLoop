@@ -68,7 +68,7 @@
         import { getFirestore, collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp, writeBatch, setDoc, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
         // --- CONFIGURAZIONE GOOGLE ---
-        const GOOGLE_CLIENT_ID = "508054707957-lb81rgk20vk0vr7bkkufsd83m80l5338.apps.googleusercontent.com";
+        const GOOGLE_CLIENT_ID = "508054707957-lb81rgk20vk0vr7bkkufsd83m80l5338.apps.googleusercontent.com"; // <--- INSERISCI QUI IL TUO ID
 
         const firebaseConfig = {
             apiKey: "AIzaSyAoSqwkSoatQLABaTL17EnU4pA40kcWonY",
@@ -90,6 +90,7 @@
         let eventDetailsToSave = null;
         let tokenClient;
         let gapiReady = false;
+        let gisReady = false;
         let preferredCalendarId = 'primary';
 
         // --- CARICAMENTO DINAMICO API GOOGLE ---
@@ -127,7 +128,7 @@
                     callback: (tokenResponse) => {
                         if (tokenResponse && tokenResponse.access_token) {
                             gapi.client.setToken(tokenResponse);
-                            // Se c'è un evento in sospeso, riprendi il salvataggio
+                            // Riprendi il salvataggio se c'era un evento in sospeso
                             if (eventDetailsToSave) {
                                 if (eventDetailsToSave.isAuto) {
                                     createCalendarEvent(preferredCalendarId, eventDetailsToSave);
@@ -138,7 +139,8 @@
                         }
                     },
                 });
-                console.log("Google APIs initialized successfully");
+                gisReady = true;
+                console.log("Google APIs initialized");
             } catch (error) {
                 console.error("Errore inizializzazione Google APIs:", error);
             }
@@ -211,13 +213,11 @@
             const signInWithGoogle = async () => {
                 const provider = new GoogleAuthProvider();
                 provider.addScope('https://www.googleapis.com/auth/calendar.events');
-                provider.addScope('https://www.googleapis.com/auth/calendar.readonly');
                 try {
                     const result = await signInWithPopup(auth, provider);
                     const credential = GoogleAuthProvider.credentialFromResult(result);
                     const accessToken = credential.accessToken;
                     
-                    // Imposta il token per GAPI se le librerie sono pronte
                     if (accessToken && gapiReady) {
                         gapi.client.setToken({ access_token: accessToken });
                     }
@@ -269,7 +269,7 @@
                     nextExerciseLabel.textContent = activeSequence.exercises[currentExerciseIndex + 1]?.title || 'Ricomincia';
                 }
                 
-                countdownDisplay.textContent = formatTime(timeLeft);
+                countdownDisplay.textContent = formatTime(Math.max(0, timeLeft)); // Prevenzione visuale numeri negativi
                 
                 startPauseBtn.textContent = isPaused ? 'START' : 'PAUSE';
                 if (isPaused) {
@@ -331,7 +331,7 @@
                     timeLeft--;
                     
                     if (timeLeft < 0) {
-                        timeLeft = 0; // Fix per evitare -1:-1
+                        timeLeft = 0; // Fix per logica
                         if (isBreakTime) {
                             setupExercise(currentExerciseIndex + 1, true);
                         } else {
@@ -726,8 +726,19 @@
                      }
                      return;
                 }
-                
-                tokenClient.requestAccessToken({ prompt: '' });
+                // Altrimenti, per il flusso automatico, mostra pulsante per riconnettere
+                if (isAuto) {
+                     countdownContainer.innerHTML = `
+                        <div class="flex flex-col items-center space-y-2">
+                             <p class="text-sm text-gray-600">Sessione Google scaduta per salvataggio auto</p>
+                             <button id="reauth-btn" class="text-lg font-semibold py-2 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-all duration-200 shadow-md">Autorizza e Salva</button>
+                             <button id="skip-save-btn" class="text-sm text-gray-500 hover:underline">Salta</button>
+                        </div>`;
+                     document.getElementById('reauth-btn').addEventListener('click', () => tokenClient.requestAccessToken({ prompt: '' }));
+                     document.getElementById('skip-save-btn').addEventListener('click', resetTimerUI);
+                } else {
+                    tokenClient.requestAccessToken({ prompt: '' });
+                }
             };
 
             const listUserCalendars = async () => {
@@ -737,8 +748,7 @@
                     showCalendarSelectModal(calendars, eventDetailsToSave);
                 } catch (err) {
                     console.error("Errore lista calendari:", err);
-                    // Token probabilmente scaduto, prova a richiederlo
-                    tokenClient.requestAccessToken({ prompt: '' });
+                    renderSaveErrorUI("Errore lista calendari. Verifica permessi.", () => listUserCalendars(), resetTimerUI);
                 }
             };
             
@@ -785,11 +795,12 @@
                     setTimeout(resetTimerUI, 3000);
                 } catch (err) {
                      console.error("Errore nel creare l'evento:", err);
-                     renderSaveErrorUI(
-                        "Errore salvataggio evento.", 
-                        () => createCalendarEvent(calendarId, {startTime, endTime, title}), 
-                        resetTimerUI
-                     );
+                     // Se errore 401 (non autorizzato), prova a richiedere token
+                     if (err.status === 401) {
+                        renderSaveErrorUI("Sessione scaduta.", () => tokenClient.requestAccessToken({ prompt: '' }), resetTimerUI);
+                     } else {
+                        renderSaveErrorUI("Errore salvataggio.", () => createCalendarEvent(calendarId, {startTime, endTime, title}), resetTimerUI);
+                     }
                 }
             };
 
@@ -809,6 +820,8 @@
             nextBtn.addEventListener('click', handleNextClick);
             backBtn.addEventListener('click', handleBackClick);
             addSequenceBtn.addEventListener('click', handleAddSequence);
+            
+            // document.addEventListener('google-token-received'...) non serve più con la nuova logica
 
             sequencesContainer.addEventListener('click', async (e) => {
                 const detailsEl = e.target.closest('details');
