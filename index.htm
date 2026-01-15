@@ -68,11 +68,12 @@
         import { getFirestore, collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp, writeBatch, setDoc, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
         // --- CONFIGURAZIONE GOOGLE ---
-        const GOOGLE_CLIENT_ID = "5835049539-efmqgkk3fmuesj0v0u6nlkf2duv6urbq.apps.googleusercontent.com";
-        const GOOGLE_CALENDAR_API_KEY = "AIzaSyAKLweJOXcYAeFNiNQE1QwW4D2SQ4XPSbQ";
+        const GOOGLE_CLIENT_ID = "508054707957-lb81rgk20vk0vr7bkkufsd83m80l5338.apps.googleusercontent.com"; // Tuo ID
+        // Uso la API KEY di Firebase anche per GAPI, assicurati che abbia Calendar abilitato o usane una dedicata se preferisci
+        const GOOGLE_API_KEY = "AIzaSyAoSqwkSoatQLABaTL17EnU4pA40kcWonY"; 
 
         const firebaseConfig = {
-            apiKey: "AIzaSyAoSqwkSoatQLABaTL17EnU4pA40kcWonY",
+            apiKey: GOOGLE_API_KEY,
             authDomain: "activaloop.firebaseapp.com",
             projectId: "activaloop",
             storageBucket: "activaloop.firebasestorage.app",
@@ -93,8 +94,6 @@
         let tokenClient;
         let eventDetailsToSave = null;
         let preferredCalendarId = 'primary';
-        
-        // FIX: Definiamo queste variabili a livello di modulo per renderle accessibili ovunque
         let gapiReady = false;
         let gisReady = false;
 
@@ -137,10 +136,10 @@
                 
                 try {
                     await gapi.client.init({
-                        apiKey: GOOGLE_CALENDAR_API_KEY,
+                        apiKey: GOOGLE_API_KEY,
                         discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest"],
                     });
-                    gapiReady = true; // FIX: Imposta gapiReady su true
+                    gapiReady = true;
                 } catch (gapiError) {
                     console.error("Errore GAPI Init:", gapiError);
                 }
@@ -152,8 +151,10 @@
                     scope: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly',
                     callback: (tokenResponse) => {
                         if (tokenResponse && tokenResponse.access_token) {
+                            // Imposta token in GAPI
                             gapi.client.setToken({ access_token: tokenResponse.access_token });
                             
+                            // Se c'era un salvataggio in sospeso, procedi
                             if (eventDetailsToSave) {
                                 if (eventDetailsToSave.isAuto && preferredCalendarId) {
                                     createCalendarEvent(preferredCalendarId, eventDetailsToSave);
@@ -164,8 +165,8 @@
                         }
                     },
                 });
-                gisReady = true; // FIX: Imposta gisReady su true
-                console.log("Google APIs initialized (GIS + GAPI)");
+                gisReady = true;
+                console.log("Google APIs initialized");
             } catch (error) {
                 console.error("Errore inizializzazione Google APIs:", error);
                 const loadingOverlay = document.getElementById('loading-overlay');
@@ -242,20 +243,15 @@
 
             const signInWithGoogle = async () => {
                 const provider = new GoogleAuthProvider();
+                // Rimosso scope Calendar da Firebase, gestito solo da GIS
                 try {
-                    // Se anonimo, collega. Altrimenti login normale.
                     if (auth.currentUser && auth.currentUser.isAnonymous) {
                          try {
                             await linkWithPopup(auth.currentUser, provider);
                          } catch (linkError) {
                              if (linkError.code === 'auth/credential-already-in-use') {
-                                 // L'account esiste già, facciamo un login normale
-                                 const credential = GoogleAuthProvider.credentialFromError(linkError);
-                                 if (credential) {
-                                     await signInWithCredential(auth, credential);
-                                 } else {
-                                     await signInWithPopup(auth, provider);
-                                 }
+                                 await signOut(auth); // Logout anonimo
+                                 await signInWithPopup(auth, provider); // Login esistente
                              } else {
                                  throw linkError;
                              }
@@ -423,7 +419,9 @@
                 }
             };
             
-            const migrateOldData = async () => {
+            const migrateOldData = async () => { /* ... (Migration Logic Omitted for brevity, kept from prev version) ... */ };
+            // (Assicurarsi che la funzione sia presente nel codice finale, qui copiata per sicurezza)
+             const migrateOldDataFunc = async () => {
                 const oldExercisesSnap = await getDocs(collection(db, `users/${userId}/exercises`));
                 const oldSettingsSnap = await getDocs(collection(db, `users/${userId}/settings`));
                 let oldSettings = {};
@@ -453,7 +451,7 @@
 
                 await batch.commit();
             };
-            
+
             const setupSequencesListener = () => {
                 if(unsubscribeFromSequences) unsubscribeFromSequences();
                 const sequencesRef = collection(db, `users/${userId}/sequences`);
@@ -463,7 +461,7 @@
                         const oldExercisesExist = !(await getDocs(collection(db, `users/${userId}/exercises`))).empty;
                         if(oldExercisesExist){
                             loadingText.textContent = "Migrazione dati in corso...";
-                            await migrateOldData();
+                            await migrateOldDataFunc();
                             return;
                         }
                     }
@@ -476,7 +474,18 @@
                     }));
 
                     if(newSequences.length > 0 && !newSequences.some(s => s.isActive)) {
-                        await handleActivateSequence(newSequences[0].id);
+                        const batch = writeBatch(db);
+                        batch.update(doc(db, `users/${userId}/sequences/${newSequences[0].id}`), { isActive: true });
+                        await batch.commit();
+                        return;
+                    }
+                    if(newSequences.length === 0 && userId) {
+                         const newSequence = {
+                            title: "Sequenza Base", isActive: true, createdAt: serverTimestamp(),
+                            settings: { speechEnabled: true, commentSpeechEnabled: true, breakDuration: 5, autoCalendarSave: false }
+                        };
+                        const ref = await addDoc(collection(db, `users/${userId}/sequences`), newSequence);
+                        await addDoc(collection(db, ref.path, 'exercises'), { title: 'Primo Esercizio', duration: 10, comment: '', order: 0, createdAt: serverTimestamp() });
                         return;
                     }
 
@@ -751,7 +760,7 @@
                 eventDetailsToSave = { startTime, endTime, title, isAuto };
                 
                 // FIX: Verifica variabili di stato corrette
-                if (!gisInited || !gapiInited) {
+                if (!gisReady || !gapiReady) {
                     renderSaveErrorUI("API Google non pronte.", () => handleCalendarSaveRequest(startTime, endTime, title, isAuto), resetTimerUI);
                     return;
                 }
@@ -766,7 +775,20 @@
                      return;
                 }
                 
-                tokenClient.requestAccessToken({ prompt: 'consent' });
+                // Se auto-save e no token, non possiamo chiamare requestAccessToken senza user gesture
+                if (isAuto) {
+                     countdownContainer.innerHTML = `
+                        <div class="flex flex-col items-center space-y-2">
+                             <p class="text-sm text-gray-600">Sessione Google scaduta per salvataggio auto</p>
+                             <button id="reauth-btn" class="text-lg font-semibold py-2 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-all duration-200 shadow-md">Autorizza e Salva</button>
+                             <button id="skip-save-btn" class="text-sm text-gray-500 hover:underline">Salta</button>
+                        </div>`;
+                     document.getElementById('reauth-btn').addEventListener('click', () => tokenClient.requestAccessToken({ prompt: '' }));
+                     document.getElementById('skip-save-btn').addEventListener('click', resetTimerUI);
+                } else {
+                    // Manual click: possiamo chiamare requestAccessToken
+                    tokenClient.requestAccessToken({ prompt: '' });
+                }
             };
 
             const listUserCalendars = async () => {
@@ -776,7 +798,13 @@
                     showCalendarSelectModal(calendars, eventDetailsToSave);
                 } catch (err) {
                     console.error("Errore lista calendari:", err);
-                    renderSaveErrorUI("Errore lista calendari.", () => listUserCalendars(), resetTimerUI);
+                    // Se errore 401/403, probabilmente il token è scaduto, chiedi ri-auth
+                    if (err.status === 401 || err.status === 403) {
+                         // Fallback UI for re-auth
+                        renderSaveErrorUI("Sessione scaduta.", () => tokenClient.requestAccessToken({ prompt: '' }), resetTimerUI);
+                    } else {
+                        renderSaveErrorUI("Errore lista calendari.", () => listUserCalendars(), resetTimerUI);
+                    }
                 }
             };
             
@@ -803,7 +831,7 @@
                 });
                 document.getElementById('modal-cancel').addEventListener('click', () => {
                     closeModal();
-                    resetTimerUI(); 
+                    resetTimerUI(); // Salta se annulla dal modal
                 });
             };
 
@@ -825,7 +853,7 @@
                      console.error("Errore nel creare l'evento:", err);
                      if (err.status === 401) {
                          // Token scaduto mentre provavamo a salvare
-                         tokenClient.requestAccessToken({ prompt: 'consent' }); // FIX 3
+                         renderSaveErrorUI("Sessione scaduta.", () => tokenClient.requestAccessToken({ prompt: '' }), resetTimerUI);
                      } else {
                         renderSaveErrorUI("Errore salvataggio.", () => createCalendarEvent(calendarId, {startTime, endTime, title}), resetTimerUI);
                      }
@@ -848,6 +876,8 @@
             nextBtn.addEventListener('click', handleNextClick);
             backBtn.addEventListener('click', handleBackClick);
             addSequenceBtn.addEventListener('click', handleAddSequence);
+            
+            // document.addEventListener('google-token-received'...) non serve più con la nuova logica
 
             sequencesContainer.addEventListener('click', async (e) => {
                 const detailsEl = e.target.closest('details');
