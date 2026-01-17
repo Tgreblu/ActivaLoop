@@ -55,7 +55,7 @@
             </div>
             <div class="flex justify-center mt-4">
                 <button id="add-sequence-btn" class="bg-blue-600 text-white rounded-full p-2 hover:bg-blue-700 shadow-lg transition z-10">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                 </button>
             </div>
         </div>
@@ -68,7 +68,7 @@
         import { getFirestore, collection, doc, onSnapshot, addDoc, updateDoc, deleteDoc, serverTimestamp, writeBatch, setDoc, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
         // --- CONFIGURAZIONE GOOGLE ---
-        const GOOGLE_CLIENT_ID = "5835049539-efmqgkk3fmuesj0v0u6nlkf2duv6urbq.apps.googleusercontent.com";
+        const GOOGLE_CLIENT_ID = "508054707957-lb81rgk20vk0vr7bkkufsd83m80l5338.apps.googleusercontent.com";
         const GOOGLE_API_KEY = "AIzaSyAoSqwkSoatQLABaTL17EnU4pA40kcWonY";
 
         const firebaseConfig = {
@@ -98,9 +98,11 @@
 
         // Funzione per formattare la data in ISO locale (per timezone Italia/Europa)
         const toLocalISOString = (date) => {
-            const tzo = -date.getTimezoneOffset();
-            const dif = tzo >= 0 ? '+' : '-';
-            const pad = (num) => (num < 10 ? '0' : '') + num;
+            const tzo = -date.getTimezoneOffset(),
+                dif = tzo >= 0 ? '+' : '-',
+                pad = function(num) {
+                    return (num < 10 ? '0' : '') + num;
+                };
             return date.getFullYear() +
                 '-' + pad(date.getMonth() + 1) +
                 '-' + pad(date.getDate()) +
@@ -268,23 +270,13 @@
             const signInWithGoogle = async () => {
                 const provider = new GoogleAuthProvider();
                 try {
+                    const result = await signInWithPopup(auth, provider);
                     if (auth.currentUser && auth.currentUser.isAnonymous) {
-                         try {
-                            await linkWithPopup(auth.currentUser, provider);
-                         } catch (linkError) {
-                             if (linkError.code === 'auth/credential-already-in-use') {
-                                 await signOut(auth); 
-                                 await signInWithPopup(auth, provider); 
-                             } else {
-                                 throw linkError;
-                             }
-                         }
-                    } else {
-                        await signInWithPopup(auth, provider);
+                        const credential = GoogleAuthProvider.credentialFromResult(result);
+                        await linkWithCredential(auth.currentUser, credential);
                     }
                 } catch (error) {
-                    console.error("Errore accesso Google:", error);
-                    alert("Errore login: " + error.message);
+                    console.error("Errore durante l'accesso con Google:", error);
                 }
             };
             
@@ -388,7 +380,6 @@
                     timeLeft--;
                     
                     if (timeLeft < 0) {
-                        timeLeft = 0; 
                         if (isBreakTime) {
                             setupExercise(currentExerciseIndex + 1, true);
                         } else {
@@ -495,18 +486,7 @@
                     }));
 
                     if(newSequences.length > 0 && !newSequences.some(s => s.isActive)) {
-                        const batch = writeBatch(db);
-                        batch.update(doc(db, `users/${userId}/sequences/${newSequences[0].id}`), { isActive: true });
-                        await batch.commit();
-                        return;
-                    }
-                    if(newSequences.length === 0 && userId) {
-                         const newSequence = {
-                            title: "Sequenza Base", isActive: true, createdAt: serverTimestamp(),
-                            settings: { speechEnabled: true, commentSpeechEnabled: true, breakDuration: 5, autoCalendarSave: false }
-                        };
-                        const ref = await addDoc(collection(db, `users/${userId}/sequences`), newSequence);
-                        await addDoc(collection(db, ref.path, 'exercises'), { title: 'Primo Esercizio', duration: 10, comment: '', order: 0, createdAt: serverTimestamp() });
+                        await handleActivateSequence(newSequences[0].id);
                         return;
                     }
 
@@ -785,19 +765,33 @@
                     return;
                 }
                 
-                // Richiedi SEMPRE il token per gestire correttamente i permessi
-                tokenClient.requestAccessToken({ prompt: '' });
+                // Se abbiamo già un token valido, procedi
+                if (gapi.client.getToken() !== null) {
+                     if (isAuto && preferredCalendarId) {
+                         createCalendarEvent(preferredCalendarId, eventDetailsToSave);
+                     } else {
+                         listUserCalendars();
+                     }
+                     return;
+                }
+                
+                tokenClient.requestAccessToken({ prompt: 'consent' });
             };
 
             const listUserCalendars = async () => {
                 try {
-                    await gapi.client.load('calendar', 'v3'); // Force load
                     const response = await gapi.client.calendar.calendarList.list();
                     const calendars = response.result.items.filter(cal => cal.accessRole === 'owner' || cal.accessRole === 'writer');
                     showCalendarSelectModal(calendars, eventDetailsToSave);
                 } catch (err) {
                     console.error("Errore lista calendari:", err);
-                    renderSaveErrorUI("Errore lista calendari.", () => listUserCalendars(), resetTimerUI);
+                    // Se errore 401/403, probabilmente il token è scaduto, chiedi ri-auth
+                    if (err.status === 401 || err.status === 403) {
+                         // Fallback UI for re-auth
+                        renderSaveErrorUI("Sessione scaduta.", () => tokenClient.requestAccessToken({ prompt: '' }), resetTimerUI);
+                    } else {
+                        renderSaveErrorUI("Errore lista calendari.", () => listUserCalendars(), resetTimerUI);
+                    }
                 }
             };
             
@@ -824,7 +818,7 @@
                 });
                 document.getElementById('modal-cancel').addEventListener('click', () => {
                     closeModal();
-                    resetTimerUI(); 
+                    resetTimerUI(); // Salta se annulla dal modal
                 });
             };
 
@@ -835,7 +829,6 @@
                     'end': { 'dateTime': toLocalISOString(endTime), 'timeZone': 'Europe/Rome' }
                 };
                 try {
-                    await gapi.client.load('calendar', 'v3'); // Force load
                     await gapi.client.calendar.events.insert({
                         'calendarId': calendarId,
                         'resource': event
@@ -845,7 +838,12 @@
                     setTimeout(resetTimerUI, 3000);
                 } catch (err) {
                      console.error("Errore nel creare l'evento:", err);
-                     renderSaveErrorUI("Errore salvataggio.", () => createCalendarEvent(calendarId, {startTime, endTime, title}), resetTimerUI);
+                     if (err.status === 401) {
+                         // Token scaduto mentre provavamo a salvare
+                         renderSaveErrorUI("Sessione scaduta.", () => tokenClient.requestAccessToken({ prompt: '' }), resetTimerUI);
+                     } else {
+                        renderSaveErrorUI("Errore salvataggio.", () => createCalendarEvent(calendarId, {startTime, endTime, title}), resetTimerUI);
+                     }
                 }
             };
 
