@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ActivaLoop</title>
+    <title>ActivaLoop 4.0</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2563eb"/>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -109,8 +109,8 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import {
             getAuth, signInAnonymously, onAuthStateChanged,
-            GoogleAuthProvider, signInWithPopup, signOut,
-            linkWithPopup  // FIX #1: rimosso linkWithCredential (non usato), usato linkWithPopup
+            GoogleAuthProvider, signInWithPopup, signInWithRedirect,
+            getRedirectResult, signOut
         } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
         import {
             getFirestore, collection, doc, onSnapshot, addDoc,
@@ -328,27 +328,90 @@
                 }
             };
 
-            // FIX #1: signInWithGoogle corretto — usa linkWithPopup per utenti anonimi
             const signInWithGoogle = async () => {
-                const provider     = new GoogleAuthProvider();
-                const currentUser  = auth.currentUser;
+                const provider = new GoogleAuthProvider();
+                // Forza la selezione account ogni volta (evita sessioni cached che causano
+                // "The requested action is invalid")
+                provider.setCustomParameters({ prompt: 'select_account' });
+                auth.useDeviceLanguage();
+
+                const loginBtn = document.getElementById('login-btn');
+                if (loginBtn) {
+                    loginBtn.disabled = true;
+                    loginBtn.textContent = 'Accesso in corso...';
+                }
+
                 try {
-                    if (currentUser && currentUser.isAnonymous) {
-                        await linkWithPopup(currentUser, provider);
-                    } else {
-                        await signInWithPopup(auth, provider);
-                    }
+                    // Prova prima con il popup (migliore UX su desktop)
+                    await signInWithPopup(auth, provider);
                 } catch (error) {
-                    // Se le credenziali sono già in uso, fai sign-in normale
-                    if (error.code === 'auth/credential-already-in-use') {
-                        try { await signInWithPopup(auth, provider); } catch (e) {
-                            showErrorToast("Errore accesso Google: " + e.message);
+                    const fallbackCodes = [
+                        'auth/popup-blocked',
+                        'auth/popup-closed-by-user',   // utente ha chiuso → non fare redirect
+                        'auth/cancelled-popup-request',
+                        'auth/internal-error',          // "The requested action is invalid"
+                        'auth/unauthorized-domain',
+                    ];
+
+                    if (error.code === 'auth/popup-closed-by-user' ||
+                        error.code === 'auth/cancelled-popup-request') {
+                        // L'utente ha chiuso il popup: non fare nulla, ripristina solo il pulsante
+                        updateAuthUI(auth.currentUser);
+                        return;
+                    }
+
+                    if (fallbackCodes.includes(error.code)) {
+                        // Fallback: redirect (funziona sempre, anche su domini non autorizzati
+                        // nella configurazione OAuth o quando i popup sono bloccati)
+                        try {
+                            await signInWithRedirect(auth, provider);
+                            // La pagina verrà ricaricata dal browser —
+                            // il risultato viene gestito da handleRedirectResult() sotto
+                        } catch (redirectErr) {
+                            showErrorToast(buildAuthErrorMessage(redirectErr));
+                            updateAuthUI(auth.currentUser);
                         }
                     } else {
-                        showErrorToast("Errore accesso Google: " + error.message);
+                        showErrorToast(buildAuthErrorMessage(error));
+                        updateAuthUI(auth.currentUser);
                     }
                 }
             };
+
+            // Messaggi d'errore chiari per i codici Firebase Auth più comuni
+            const buildAuthErrorMessage = (error) => {
+                const messages = {
+                    'auth/unauthorized-domain':
+                        '❌ Dominio non autorizzato. Aggiungi questo dominio in Firebase Console → Authentication → Settings → Authorized domains.',
+                    'auth/invalid-api-key':
+                        '❌ API key Firebase non valida.',
+                    'auth/operation-not-allowed':
+                        '❌ Login con Google non abilitato. Attivalo in Firebase Console → Authentication → Sign-in method.',
+                    'auth/account-exists-with-different-credential':
+                        '⚠️ Esiste già un account con questa email.',
+                    'auth/network-request-failed':
+                        '❌ Errore di rete. Controlla la connessione internet.',
+                };
+                return messages[error.code] || `Errore accesso (${error.code}): ${error.message}`;
+            };
+
+            // Gestisce il risultato del redirect al caricamento della pagina
+            const handleRedirectResult = async () => {
+                try {
+                    const result = await getRedirectResult(auth);
+                    if (result?.user) {
+                        // Login via redirect completato con successo
+                        console.log('Login via redirect:', result.user.displayName);
+                    }
+                } catch (error) {
+                    if (error.code !== 'auth/no-auth-event') {
+                        showErrorToast(buildAuthErrorMessage(error));
+                    }
+                }
+            };
+
+            // Avvia subito il controllo redirect (prima di onAuthStateChanged)
+            handleRedirectResult();
 
             // ─── Timer & UI ────────────────────────────────────────────────
 
